@@ -117,7 +117,7 @@ function systemPrompt(extra = '') {
     'Be honest about your limits: you cannot click inside other apps, read the screen, send emails or messages yourself, or control programs beyond opening them. If asked for something you cannot do, say so plainly and suggest the closest thing you can do. Never pretend you tried. Never start your reply with "Pip:".',
     'SPREADSHEETS: you CAN read the user\'s Excel/CSV data and draw charts. ' + (data
       ? `Data is loaded from "${data.name}":\n${dataSummary()}\n`
-      : 'No data is loaded yet. If the user asks you to read, analyze or chart their Excel/data/spreadsheet, reply with one short sentence like "Let me read your Excel file." plus the tag [[READ:excel]] - Pip will load the workbook open in Excel (or ask the user to pick a file) and send you the data. Do not ask which chart they want first.\n') +
+      : 'No data is loaded yet. If the user asks you to read, analyze or chart their Excel/data/spreadsheet, reply with one short sentence like "Let me read your Excel file." and then the tag [[READ:excel]] on its own line (never inside bold/quotes, never ask the user to type it) - Pip will load the workbook open in Excel (or ask the user to pick a file) and send you the data. Do not ask which chart they want first.\n') +
       'To draw a chart, output a fenced block exactly like:\n```chart\n{"type":"bar","title":"Sales by Region","sheet":"Sheet1","x":"Region","y":"Sales","agg":"sum","top":10}\n```\n' +
       'type: bar | hbar | line | pie | doughnut. x = category or date column (exact column name). y = numeric column name, or a list of names, or omit to count rows. agg: sum | avg | count | max | min. ' +
       'Optional "bucket":"day"|"month"|"year" when x holds dates (use line charts for trends over time). Optional "sort":"desc"|"asc"|"none". ' +
@@ -169,7 +169,7 @@ async function askAI({ text = '', audio = null, display = null, extraSystem = ''
   let answer = raw, heard = '';
   const hm = raw.match(/^\s*HEARD:\s*(.*)\n?/);
   if (hm) { heard = hm[1].replace(TAG_RE, '').trim(); answer = raw.slice(hm[0].length); }
-  answer = answer.replace(TAG_RE, '').trim();
+  answer = answer.replace(TAG_RE, '').replace(/(\*\*|__|`|")\s*\1/g, '').trim();   // drop empty **...** left where a tag was
   if (voiceEl) {
     if ((!heard || /^\(nothing\)$/i.test(heard)) && !opens.length && !tasks.length) { voiceEl.remove(); target.remove(); say("I didn't catch that - try again?"); sys("Didn't hear any speech."); mood('worried', 2000); return null; }
     voiceEl.innerHTML = '&#127908; ' + esc(heard || '(voice)');
@@ -236,17 +236,41 @@ function colKind(t, i) {
   return 'text';
 }
 
+// Finds the data to read: the workbook open in Excel, otherwise asks in the chat with the
+// user's recent Excel files as buttons. Resolves true once data is loaded, false if cancelled.
 async function loadData() {
-  let p = null;
   const a = await window.pip.activeExcel();
-  if (a.open && a.unsaved) sys(`"${a.name}" in Excel has never been saved - press Ctrl+S in Excel first, or pick a file now.`);
-  else if (a.path) {
-    p = a.path;
+  if (a.path) {
     sys(`\u{1F4CA} Reading the workbook open in Excel: ${a.name}` + (a.saved ? '' : '\n(using the last saved version - press Ctrl+S in Excel to include new edits)'));
+    if (await attachPath(a.path)) return true;
   }
-  if (!p) p = await window.pip.pickFile();
-  if (!p) { sys('No file chosen.'); mood('idle'); return false; }
-  return attachPath(p);
+  const recent = await window.pip.recentExcel();
+  const intro = a.open && a.unsaved
+    ? `"${a.name}" in Excel has never been saved. Save it first (Ctrl+S), then pick it here - or choose another file:`
+    : 'Which file should I read? Here are your recent Excel files:';
+  openPanel(); mood('listen');
+  const el = addMsg('pip', md(recent.length ? intro : 'Which file should I read? Choose your Excel or CSV file:'));
+  say('Which file should I read? Pick one in the chat \u{1F447}', 15000);
+  speak(recent.length ? 'Which file should I read? Pick one.' : 'Which file should I read?');
+  const box = document.createElement('div'); box.className = 'fileChoices'; el.appendChild(box);
+  return new Promise((resolve) => {
+    const finish = async (p) => {
+      box.querySelectorAll('button').forEach((b) => (b.disabled = true));
+      if (!p) {
+        sys('Cancelled - no file loaded.');
+        history.push({ role: 'model', text: '(No file was chosen, so no data is loaded and no chart was made yet. If the user asks again, use [[READ:excel]] again.)' });
+        mood('idle'); return resolve(false);
+      }
+      const ok = await attachPath(p);
+      if (!ok) box.querySelectorAll('button').forEach((b) => (b.disabled = false));
+      else resolve(true);
+    };
+    const add = (label, title, fn) => { const b = document.createElement('button'); b.className = 'action'; b.textContent = label; b.title = title; b.onclick = fn; box.appendChild(b); };
+    for (const f of recent) add('\u{1F4CA} ' + f.split('\\').pop(), f, () => finish(f));
+    add('\u{1F4C2} Other file...', 'Browse for a file', async () => { const p = await window.pip.pickFile(); if (p) finish(p); });
+    add('Cancel', '', () => finish(null));
+    log.scrollTop = log.scrollHeight;
+  });
 }
 
 function findCol(t, name) {
@@ -579,6 +603,8 @@ function applyCharacter() {
   const c = CHAR_NAMES[settings.character] ? settings.character : 'pip';
   pipEl.dataset.char = c;
   $('#head .who b').textContent = CHAR_NAMES[c];
+  input.placeholder = `Ask ${CHAR_NAMES[c]} anything...  (Enter = send)`;
+  $('#foot').textContent = `AI can make mistakes · drop a file on ${c === 'bears' ? 'us' : 'Pip'} to summarize`;
   pipEl.title = `${CHAR_NAMES[c]} - click to chat, drag to move, drop a file to summarize`;
 }
 

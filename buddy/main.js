@@ -365,6 +365,18 @@ function tablesToText(tables) {
   }).join('\n\n');
 }
 
+// Excel's own "Recent" list (registry MRU), newest first, only files that still exist.
+function recentExcelFiles() {
+  const ps = "Get-ChildItem 'HKCU:\\Software\\Microsoft\\Office' -EA SilentlyContinue | % { @((Join-Path $_.PSPath 'Excel\\File MRU')) + @(Get-ChildItem (Join-Path $_.PSPath 'Excel\\User MRU') -EA SilentlyContinue | % { Join-Path $_.PSPath 'File MRU' }) } | ? { Test-Path $_ } | % { (Get-ItemProperty $_).PSObject.Properties | ? Name -like 'Item*' | Sort-Object { [int]($_.Name -replace '\\D','') } | % { ($_.Value -split '\\*')[-1] } }";
+  return new Promise(resolve => {
+    const c = spawn(path.join(process.env.WINDIR, 'System32\\WindowsPowerShell\\v1.0\\powershell.exe'), ['-NoProfile', '-Command', ps], { windowsHide: true });
+    let out = '';
+    c.stdout.on('data', d => out += d);
+    c.on('close', () => resolve(out.split(/\r?\n/).map(s => s.trim())
+      .filter((p, i, a) => p && a.indexOf(p) === i && /\.(xlsx|xlsm|xls|csv)$/i.test(p) && fs.existsSync(p)).slice(0, 6)));
+  });
+}
+
 // Path of the workbook currently open in Excel (if any). Uses the running Excel via COM.
 function activeExcelPath() {
   const ps = "try{$x=[Runtime.InteropServices.Marshal]::GetActiveObject('Excel.Application');$w=$x.ActiveWorkbook;if($w){[Console]::Out.Write($w.FullName+'|'+$w.Saved)}}catch{}";
@@ -459,6 +471,7 @@ function registerIpc() {
     return { ok: true, label: key };
   });
   ipcMain.handle('excel:active', () => activeExcelPath());
+  ipcMain.handle('excel:recent', () => recentExcelFiles());
   ipcMain.handle('excel:chart', (_e, chart) => new Promise((resolve) => {
     const json = path.join(app.getPath('temp'), `pip-chart-${Date.now()}.json`);
     fs.writeFileSync(json, JSON.stringify(chart), 'utf8');
