@@ -1,0 +1,153 @@
+:root {
+  --bg: rgba(22, 24, 38, 0.96);
+  --bg2: #232641;
+  --line: #3a3e66;
+  --text: #eceefe;
+  --muted: #9aa0c8;
+  --accent: #14a8b4;
+  --accent2: #8b7cff;
+  --user: #2d6cdf;
+  --ok: #39c27f;
+  --warn: #f2b33d;
+  --body: #fff3dc;
+  --body-line: #3b2f4a;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: transparent; overflow: hidden;
+  font: 13px/1.45 "Segoe UI", "Myanmar Text", system-ui, sans-serif; color: var(--text); user-select: none; }
+button { font: inherit; color: inherit; cursor: pointer; }
+.hidden { display: none !important; }
+
+/* ---------------- panel */
+#panel { position: absolute; left: 8px; right: 8px; top: 8px; bottom: 150px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.45); display: flex; flex-direction: column; overflow: hidden;
+  animation: pop .18s ease-out; }
+#panel::after { content: ""; position: absolute; right: 120px; bottom: -9px; width: 16px; height: 16px;
+  background: var(--bg); border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); transform: rotate(45deg); }
+@keyframes pop { from { transform: scale(.94) translateY(8px); opacity: 0; } }
+#head { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px 6px 14px;
+  background: linear-gradient(90deg, rgba(139,124,255,.25), rgba(20,168,180,.18)); border-bottom: 1px solid var(--line); }
+.who b { font-size: 14px; }
+#modelTag { font-size: 11px; color: var(--muted); margin-left: 6px; text-transform: uppercase; letter-spacing: .04em; }
+.headBtns button { background: none; border: 0; font-size: 15px; padding: 2px 6px; border-radius: 6px; color: var(--muted); }
+.headBtns button:hover { background: var(--bg2); color: var(--text); }
+
+#chips { display: flex; flex-wrap: wrap; gap: 5px; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+#chips button { background: var(--bg2); border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; font-size: 11.5px; }
+#chips button:hover { border-color: var(--accent); }
+#chips button.ai { border-color: rgba(139,124,255,.6); }
+#chips button:disabled { opacity: .5; cursor: wait; }
+
+#log { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; user-select: text; }
+#log::-webkit-scrollbar { width: 6px; } #log::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+.msg { max-width: 88%; padding: 7px 10px; border-radius: 12px; white-space: normal; word-wrap: break-word; }
+.msg.user { align-self: flex-end; background: var(--user); border-bottom-right-radius: 4px; }
+.msg.pip { align-self: flex-start; background: var(--bg2); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+.msg.sys { align-self: center; background: none; color: var(--muted); font-size: 11.5px; text-align: center; white-space: pre-wrap; }
+.msg.err { align-self: center; color: #ff8f8f; font-size: 12px; text-align: center; }
+.msg code { background: rgba(255,255,255,.08); padding: 0 4px; border-radius: 4px; font-family: Consolas, monospace; font-size: 12px; }
+.msg pre { background: rgba(0,0,0,.35); padding: 6px 8px; border-radius: 6px; overflow-x: auto; margin: 4px 0; }
+.msg pre code { background: none; padding: 0; }
+.msg ul { margin: 2px 0; padding-left: 18px; }
+.msg h4 { margin: 4px 0 2px; font-size: 13px; color: #c9c2ff; }
+.msgTools { display: flex; gap: 6px; margin-top: 6px; }
+.msgTools button, .action { background: rgba(255,255,255,.06); border: 1px solid var(--line); border-radius: 8px; font-size: 11px; padding: 2px 8px; }
+.action { border-color: var(--accent); background: rgba(20,168,180,.15); margin-top: 6px; display: inline-block; }
+.typing::after { content: "\25CF\25CF\25CF"; letter-spacing: 2px; color: var(--muted); animation: blinkDots 1s infinite; }
+@keyframes blinkDots { 50% { opacity: .3; } }
+
+#attach { margin: 0 10px; padding: 3px 8px; font-size: 11.5px; background: rgba(139,124,255,.18); border-radius: 8px;
+  display: flex; justify-content: space-between; align-items: center; }
+#attach button { background: none; border: 0; color: var(--muted); }
+#form { display: flex; gap: 6px; align-items: flex-end; padding: 8px 10px 4px; }
+#form > button { background: var(--bg2); border: 1px solid var(--line); border-radius: 10px; width: 32px; height: 32px; flex: none; }
+#btnSend { background: var(--accent) !important; border-color: var(--accent) !important; }
+#btnMic.rec { background: #d6455d !important; border-color: #d6455d !important; animation: pulse 1s infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 6px rgba(214,69,93,.25); } }
+#input { flex: 1; resize: none; max-height: 90px; background: var(--bg2); border: 1px solid var(--line); border-radius: 10px;
+  color: var(--text); padding: 6px 9px; font: inherit; outline: none; user-select: text; }
+#input:focus { border-color: var(--accent); }
+#foot { font-size: 10.5px; color: var(--muted); text-align: center; padding: 0 0 6px; }
+
+/* ---------------- settings */
+#settings { position: absolute; inset: 0; background: #16182a; z-index: 5; padding: 12px 16px; overflow-y: auto; }
+#settings h3 { margin: 0 0 8px; }
+#settings label { display: block; margin: 7px 0; font-size: 12px; color: var(--muted); }
+#settings label.row { display: flex; gap: 6px; align-items: center; color: var(--text); }
+#settings input:not([type=checkbox]), #settings select { display: block; width: 100%; margin-top: 3px; background: var(--bg2);
+  border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 5px 8px; font: inherit; user-select: text; }
+#settings a { color: var(--accent); }
+#sKey { display: block; width: 100%; margin-top: 3px; background: var(--bg2); border: 1px solid var(--line); color: var(--text);
+  border-radius: 8px; padding: 5px 8px; font: 12px Consolas, monospace; resize: vertical; user-select: text; -webkit-text-security: disc; }
+#sKey.reveal { -webkit-text-security: none; }
+#keyStatus { font-size: 11.5px; color: var(--muted); white-space: pre-wrap; margin: 2px 0 4px; }
+#keyStatus .ok { color: var(--ok); } #keyStatus .bad { color: #ff8f8f; }
+.keyBtns { display: flex; gap: 6px; }
+.keyBtns button { background: var(--bg2); border: 1px solid var(--line); border-radius: 8px; padding: 3px 10px; font-size: 11.5px; }
+.keyBtns button:disabled { opacity: .5; cursor: wait; }
+.btnRow { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.btnRow button { background: var(--bg2); border: 1px solid var(--line); border-radius: 8px; padding: 5px 14px; }
+.btnRow .primary { background: var(--accent); border-color: var(--accent); }
+
+/* ---------------- hint bubble */
+#hint { position: absolute; right: 120px; bottom: 120px; max-width: 230px; background: var(--bg); border: 1px solid var(--line);
+  border-radius: 12px; padding: 6px 10px; font-size: 12px; box-shadow: 0 6px 18px rgba(0,0,0,.4); animation: pop .2s; cursor: pointer; }
+
+#drop { position: absolute; right: 10px; bottom: 150px; background: var(--accent2); color: #fff; padding: 6px 12px;
+  border-radius: 10px; font-weight: 600; }
+
+/* ---------------- character */
+#pip { position: absolute; right: 10px; bottom: 4px; width: 132px; height: 140px; cursor: grab; }
+#pip:active { cursor: grabbing; }
+#pip svg { overflow: visible; }
+.shadow { fill: rgba(0,0,0,.25); }
+.body { fill: var(--body); stroke: var(--body-line); stroke-width: 3; }
+.belly { fill: #ffe6bd; }
+.foot { fill: #5b4a6e; }
+.tie { fill: #2d6cdf; stroke: #1c3f86; stroke-width: 1.5; }
+.collar { fill: #fff; stroke: var(--body-line); stroke-width: 1.5; }
+.arm { fill: var(--body); stroke: var(--body-line); stroke-width: 3; stroke-linecap: round; }
+.band, .mic { stroke: #39324a; stroke-width: 4; stroke-linecap: round; }
+.cup { fill: #39324a; }
+.micTip { fill: var(--accent); }
+.white { fill: #fff; stroke: var(--body-line); stroke-width: 2; }
+.pupil { fill: #241c33; transition: transform .2s; }
+.shine { fill: #fff; }
+.lid { stroke: var(--body-line); stroke-width: 3; stroke-linecap: round; opacity: 0; }
+.cheek { fill: #ff9fb0; opacity: .7; }
+.brow { stroke: var(--body-line); stroke-width: 3; stroke-linecap: round; opacity: 0; }
+.mouth { stroke: var(--body-line); stroke-width: 3; stroke-linecap: round; }
+.mouth.talk { fill: #7a2f45; stroke-width: 2; display: none; transform-origin: 80px 84px; }
+.mouth.flat { display: none; }
+.dots, .zzz, .waves { display: none; }
+.dots circle { fill: #fff; stroke: var(--body-line); stroke-width: 1.5; }
+.zzz text { fill: #c9c2ff; font: bold 14px "Segoe UI"; }
+.waves path { stroke: var(--accent); stroke-width: 3; stroke-linecap: round; }
+
+.bob { animation: bob 3s ease-in-out infinite; transform-origin: 80px 150px; }
+@keyframes bob { 50% { transform: translateY(-3px) scaleY(1.01); } }
+.eye { animation: blink 4.5s infinite; transform-origin: center 64px; transform-box: fill-box; }
+@keyframes blink { 0%, 95%, 100% { transform: scaleY(1); } 97% { transform: scaleY(.1); } }
+.armR { transform-origin: 132px 92px; transform-box: view-box; }
+
+#pip.talk .mouth.smile { display: none; }
+#pip.talk .mouth.talk { display: block; animation: talk .22s infinite alternate; }
+@keyframes talk { from { transform: scaleY(.3); } to { transform: scaleY(1.1); } }
+#pip.think .dots { display: block; animation: blinkDots 1.2s infinite; }
+#pip.think .pupil { transform: translate(3px, -4px); }
+#pip.think .mouth.smile { display: none; } #pip.think .mouth.flat { display: block; }
+#pip.happy .armR { animation: wave .4s 3 alternate; }
+@keyframes wave { to { transform: rotate(-35deg); } }
+#pip.happy .bob { animation: hop .5s 2; }
+@keyframes hop { 50% { transform: translateY(-12px); } }
+#pip.listen .waves { display: block; animation: blinkDots .8s infinite; }
+#pip.listen .pupil { transform: translate(-2px, 0); }
+#pip.sleep .eye { animation: none; transform: scaleY(.12); }
+#pip.sleep .lid { opacity: 1; }
+#pip.sleep .zzz { display: block; animation: blinkDots 2s infinite; }
+#pip.sleep .bob { animation-duration: 5s; }
+#pip.worried .brow { opacity: 1; transform: rotate(0); }
+#pip.worried .mouth.smile { display: none; } #pip.worried .mouth.flat { display: block; }
+#pip.drag .bob { transform: rotate(-6deg); animation: none; }
+

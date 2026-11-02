@@ -1,0 +1,25 @@
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
+
+contextBridge.exposeInMainWorld('pip', {
+  ignoreMouse: (on) => ipcRenderer.send('win:ignore', on),
+  moveWindow: (x, y) => ipcRenderer.send('win:move', { x, y }),
+  windowPos: () => ipcRenderer.invoke('win:pos'),
+  hide: () => ipcRenderer.send('win:hide'),
+  getSettings: () => ipcRenderer.invoke('settings:get'),
+  setSettings: (patch) => ipcRenderer.invoke('settings:set', patch),
+  ask: (req) => ipcRenderer.invoke('ai:ask', req),
+  testKeys: (text) => ipcRenderer.invoke('ai:test', text),
+  onSettingsChanged: (fn) => ipcRenderer.on('ui:settings', () => fn()),
+  models: () => ipcRenderer.invoke('ai:models'),
+  readFile: (p) => ipcRenderer.invoke('file:read', p),
+  pickFile: () => ipcRenderer.invoke('file:pick'),
+  pickFolder: () => ipcRenderer.invoke('folder:pick'),
+  pathOf: (file) => webUtils.getPathForFile(file),
+  runTask: (task, folder) => ipcRenderer.invoke('task:run', { task, folder }),
+  todayNote: () => ipcRenderer.invoke('note:today'),
+  copy: (t) => ipcRenderer.invoke('clip:write', t),
+  mailDraft: (subject, body) => ipcRenderer.invoke('mail:draft', { subject, body }),
+  onChunk: (fn) => ipcRenderer.on('ai:chunk', (_e, d) => fn(d)),
+  onOpen: (fn) => ipcRenderer.on('ui:open', (_e, what) => fn(what)),
+  onPushToTalk: (fn) => ipcRenderer.on('ui:ptt', () => fn()),
+});

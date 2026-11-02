@@ -1,0 +1,6 @@
+# Optional: copy this file to api-key.txt and put your Gemini API key(s) below, one per line.
+# Get a free key at https://aistudio.google.com/apikey
+# Keys saved in Pip's Settings (encrypted) take priority over this file.
+# api-key.txt is in .gitignore - never share or upload it.
+
+PASTE-YOUR-KEY-HERE

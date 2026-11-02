@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:">
+<title>Pip</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- chat panel -->
+<section id="panel" class="hit hidden">
+  <header id="head">
+    <div class="who"><b>Pip</b> <span id="modelTag">gemini</span></div>
+    <div class="headBtns">
+      <button id="btnSettings" title="Settings">&#9881;</button>
+      <button id="btnClose" title="Close (Ctrl+Alt+Space)">&#10005;</button>
+    </div>
+  </header>
+
+  <div id="chips">
+    <button data-task="Organize" title="Sort Downloads into folders">&#128194; Tidy Downloads</button>
+    <button data-task="Backup" title="Zip Documents + Desktop">&#128190; Backup</button>
+    <button data-task="ToPdf" data-folder="1" title="Convert a folder of Office files to PDF">&#128196; To PDF</button>
+    <button data-task="Duplicates" data-folder="1" title="Find duplicate files">&#128269; Duplicates</button>
+    <button data-task="CleanTemp" title="Delete temp files older than 7 days">&#129529; Clean temp</button>
+    <button data-task="DailyNote" title="Open today's to-do note">&#128221; Today</button>
+    <button id="btnReport" class="ai" title="AI writes your end-of-day report">&#10024; Daily report</button>
+    <button id="btnSummarize" class="ai" title="Summarize a file">&#10024; Summarize file</button>
+  </div>
+
+  <div id="log"></div>
+
+  <div id="attach" class="hidden"><span id="attachName"></span><button id="attachX">&#10005;</button></div>
+  <form id="form">
+    <button type="button" id="btnFile" title="Attach a file">&#128206;</button>
+    <textarea id="input" rows="1" placeholder="Ask Pip anything...  (Enter = send)"></textarea>
+    <button type="button" id="btnMic" title="Push to talk (Ctrl+Alt+V)">&#127908;</button>
+    <button type="submit" id="btnSend" title="Send">&#10148;</button>
+  </form>
+  <div id="foot">AI can make mistakes &middot; drop a file on Pip to summarize</div>
+
+  <!-- settings sheet -->
+  <div id="settings" class="hidden">
+    <h3>Settings</h3>
+    <label>Gemini API key(s) <a id="keyLink" href="#">get one free</a>
+      <textarea id="sKey" rows="2" spellcheck="false" placeholder="paste key - one per line to add several (auto-switch when one runs out)"></textarea>
+    </label>
+    <div id="keyStatus"></div>
+    <div class="keyBtns">
+      <button id="sTest" type="button">Test keys</button>
+      <button id="sShow" type="button">Show</button>
+      <button id="sClearKeys" type="button">Remove saved keys</button>
+    </div>
+    <label>Connection
+      <select id="sMode">
+        <option value="relay">Relay (works in Myanmar, no VPN)</option>
+        <option value="direct">Direct to Google (VPN or proxy)</option>
+      </select>
+    </label>
+    <label class="relayOnly">Relay URL <input id="sRelay"></label>
+    <label class="directOnly">Proxy (optional) <input id="sProxy" placeholder="http://127.0.0.1:8118"></label>
+    <label>Model <input id="sModel" list="modelList"><datalist id="modelList"></datalist></label>
+    <label>Reply language
+      <select id="sLang"><option value="auto">Same as I write</option><option value="en">English</option><option value="my">Burmese</option></select>
+    </label>
+    <label>Your name <input id="sName" placeholder="optional, for reports"></label>
+    <label class="row"><input id="sSpeak" type="checkbox"> Read replies aloud</label>
+    <label class="row"><input id="sAuto" type="checkbox"> Start Pip when Windows starts</label>
+    <label>Voice <select id="sVoice"></select></label>
+    <div class="btnRow"><button id="sCancel" type="button">Cancel</button><button id="sSave" type="button" class="primary">Save</button></div>
+  </div>
+</section>
+
+<!-- speech hint bubble when panel is closed -->
+<div id="hint" class="hit hidden"></div>
+
+<!-- the character -->
+<div id="pip" class="hit idle" title="Click me! Drag to move. Drop a file to summarize.">
+  <svg viewBox="0 0 160 170" width="132" height="140" aria-label="Pip">
+    <ellipse class="shadow" cx="80" cy="162" rx="42" ry="6"/>
+    <g class="bob">
+      <!-- feet -->
+      <ellipse class="foot" cx="60" cy="150" rx="14" ry="8"/>
+      <ellipse class="foot" cx="100" cy="150" rx="14" ry="8"/>
+      <!-- body -->
+      <path class="body" d="M80 22c34 0 56 26 56 62 0 38-22 64-56 64S24 122 24 84c0-36 22-62 56-62z"/>
+      <path class="belly" d="M80 96c18 0 30 10 30 26 0 14-12 22-30 22s-30-8-30-22c0-16 12-26 30-26z"/>
+      <!-- tie -->
+      <path class="tie" d="M74 92h12l-2 6 6 26-10 10-10-10 6-26z"/>
+      <path class="collar" d="M62 88l18 6 18-6-4 8-14 2-14-2z"/>
+      <!-- arms -->
+      <path class="arm armL" d="M28 92c-12 4-18 14-14 22 3 5 10 3 14-4"/>
+      <path class="arm armR" d="M132 92c12 4 18 14 14 22-3 5-10 3-14-4"/>
+      <!-- headset -->
+      <path class="band" d="M34 60c4-30 26-44 46-44s42 14 46 44" fill="none"/>
+      <rect class="cup" x="26" y="56" width="12" height="22" rx="6"/>
+      <rect class="cup" x="122" y="56" width="12" height="22" rx="6"/>
+      <path class="mic" d="M32 76c0 14 10 20 24 20" fill="none"/>
+      <circle class="micTip" cx="58" cy="96" r="4"/>
+      <!-- face -->
+      <g class="eyes">
+        <g class="eye"><ellipse cx="62" cy="64" rx="9" ry="11" class="white"/><circle cx="63" cy="66" r="5" class="pupil"/><circle cx="65" cy="63" r="1.8" class="shine"/></g>
+        <g class="eye"><ellipse cx="98" cy="64" rx="9" ry="11" class="white"/><circle cx="99" cy="66" r="5" class="pupil"/><circle cx="101" cy="63" r="1.8" class="shine"/></g>
+        <path class="lid" d="M52 64q10-8 20 0M88 64q10-8 20 0" fill="none"/>
+      </g>
+      <ellipse class="cheek" cx="48" cy="80" rx="6" ry="3.5"/>
+      <ellipse class="cheek" cx="112" cy="80" rx="6" ry="3.5"/>
+      <path class="brow" d="M54 48l14 3M106 48l-14 3" fill="none"/>
+      <path class="mouth smile" d="M70 82q10 9 20 0" fill="none"/>
+      <ellipse class="mouth talk" cx="80" cy="84" rx="7" ry="5"/>
+      <path class="mouth flat" d="M72 84h16" fill="none"/>
+      <!-- extras -->
+      <g class="dots"><circle cx="128" cy="30" r="4"/><circle cx="140" cy="20" r="5"/><circle cx="152" cy="8" r="6"/></g>
+      <g class="zzz"><text x="122" y="30">z</text><text x="134" y="18">z</text></g>
+      <g class="waves"><path d="M140 70q6 10 0 20M148 64q10 16 0 32" fill="none"/></g>
+    </g>
+  </svg>
+</div>
+
+<div id="drop" class="hidden">Drop to summarize</div>
+
+<script src="renderer.js"></script>
+</body>
+</html>

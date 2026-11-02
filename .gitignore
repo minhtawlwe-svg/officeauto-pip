@@ -1,0 +1,11 @@
+# dependencies
+node_modules/
+
+# personal / secret
+buddy/api-key.txt
+*.key
+.env
+
+# runtime output
+logs/
+*.log
