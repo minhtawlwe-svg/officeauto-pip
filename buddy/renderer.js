@@ -9,7 +9,7 @@ const TASK_LABELS = {
 const FOLDER_TASKS = ['ToPdf', 'Duplicates'];
 // programs Pip may open (names must match main.js APPS)
 const APPS = { excel: 1, word: 1, powerpoint: 1, outlook: 1, notepad: 1, calculator: 1, explorer: 1, edge: 1, chrome: 1, teams: 1, paint: 1, snip: 1 };
-const TAG_RE = /\[\[(RUN|OPEN|APP|READ|REMIND|CLOSE):[^\]]*\]\]/g;
+const TAG_RE = /\[\[(RUN|OPEN|APP|READ|REMIND|CLOSE|NEW):[^\]]*\]\]/g;
 const CHART_RE = /```(?:chart|json)\s*([\s\S]*?)```/g;
 const BLOCK_RE = /```(table|slides)\s*([\s\S]*?)```/g;
 
@@ -149,6 +149,7 @@ function systemPrompt(extra = '') {
     'To open a website, add a tag on its own line: [[OPEN:https://full-url]] (e.g. YouTube = [[OPEN:https://www.youtube.com]]; for a search use the site\'s search URL, e.g. [[OPEN:https://www.youtube.com/results?search_query=lofi+music]]). ' +
       `To open a program, add [[APP:name]] where name is one of: ${Object.keys(APPS).join(', ')}. ` +
       `To close a program, add [[CLOSE:name]] (same names except explorer) - it asks the program to close politely, so it may ask the user to save first. ` +
+      'To create a NEW blank file, add [[NEW:excel]], [[NEW:word]] or [[NEW:powerpoint]] (this also opens the program - do not add [[APP:...]] too, and never output an empty table for it). ' +
       'These run immediately, so just say "Opening ..." / "Closing ..." in one short sentence.',
     'Be honest about your limits: you cannot click inside other apps, read the screen, send emails or messages yourself, or control programs beyond opening and closing them. If asked for something you cannot do, say so plainly and suggest the closest thing you can do. Never pretend you tried. Never start your reply with "Pip:".',
     'TABLES: when the user wants a table, list or anything for Excel, output a fenced block ```table\n{"title":"Customers","columns":["Name","Phone","Amount"],"rows":[["Ko Aung","09...",150000]]}\n``` (numbers as numbers, dates YYYY-MM-DD). Pip shows it with an "Open in Excel" button. Small comparison tables in normal answers can be markdown tables.',
@@ -210,7 +211,12 @@ async function askAI({ text = '', audio = null, display = null, extraSystem = ''
   const raw = res.text || streamText;
   // action tags count wherever the model put them - even on the HEARD line
   const tasks = [...raw.matchAll(/\[\[RUN:(\w+)\]\]/g)].map((m) => m[1]).filter((t) => TASK_LABELS[t]);
-  const opens = [...raw.matchAll(/\[\[(OPEN|APP|CLOSE):([^\]]+)\]\]/g)].map((m) => ({ kind: m[1], target: m[2].trim() }));
+  const opens = [...raw.matchAll(/\[\[(OPEN|APP|CLOSE|NEW):([^\]]+)\]\]/g)].map((m) => ({ kind: m[1], target: m[2].trim().toLowerCase() }));
+  // safety net: the model said "Opening Excel." / "Closing Notepad." but forgot the tag
+  if (!opens.length) {
+    const said = raw.match(/(?:^|\n)\s*(Opening|Closing)\s+(?:the\s+)?([A-Za-z]+)\b/i);
+    if (said && APPS[said[2].toLowerCase()]) opens.push({ kind: /^open/i.test(said[1]) ? 'APP' : 'CLOSE', target: said[2].toLowerCase() });
+  }
   let answer = raw, heard = '';
   // if the model re-answered older turns, several HEARD lines appear: the LAST one is this recording
   const hms = [...raw.matchAll(/^\s*HEARD:\s*(.*)$/gm)];
@@ -240,14 +246,25 @@ async function askAI({ text = '', audio = null, display = null, extraSystem = ''
   }).trim();
   const blocks = { table: [], slides: [] };
   answer = answer.replace(BLOCK_RE, (block, kind, json) => {
-    try { blocks[kind].push(JSON.parse(json)); return ''; } catch { return block; }
+    const spec = parseLooseJSON(json);
+    if (spec) {
+      const emptyTable = kind === 'table' && !(spec.rows || []).some((r) => (r || []).some((c) => c !== '' && c != null));
+      if (!emptyTable) blocks[kind].push(spec);
+      return '';
+    }
+    return '\n_(I tried to make a ' + kind + ' but it came out broken - ask me again.)_\n';   // never show raw JSON
   }).trim();
   const remTags = [...raw.matchAll(/\[\[REMIND:([^|\]]+)\|([^\]]+)\]\]/g)].map((m) => ({ when: m[1].trim(), text: m[2].trim() }));
   const wantsRead = /\[\[READ:/.test(raw) && !afterRead;
   const anything = opens.length || tasks.length || charts.length || wantsRead || blocks.table.length || blocks.slides.length || remTags.length;
   if (!answer) answer = anything ? '\u{1F44D}' : heard;   // model squeezed everything onto the HEARD line
   for (const o of opens.slice(0, 3)) {
-    const r = o.kind === 'OPEN' ? await window.pip.openUrl(o.target) : o.kind === 'CLOSE' ? await window.pip.closeApp(o.target) : await window.pip.openApp(o.target);
+    let r;
+    if (o.kind === 'NEW') {
+      const kind = { excel: 'excel', word: 'word', powerpoint: 'ppt', ppt: 'ppt' }[o.target];
+      r = kind ? await window.pip.officeMake(kind, { Columns: [], Lines: [], Slides: [], Title: '' }) : { ok: false, error: `I can make a new Excel, Word or PowerPoint file, not "${o.target}".` };
+      if (r.ok) { sys('✨ ' + r.msg + ' opened (press Ctrl+S to save it)'); continue; }
+    } else r = o.kind === 'OPEN' ? await window.pip.openUrl(o.target) : o.kind === 'CLOSE' ? await window.pip.closeApp(o.target) : await window.pip.openApp(o.target);
     if (r.ok) sys((o.kind === 'CLOSE' ? '✖ Closed ' : '↗ Opened ') + r.label); else errMsg(r.error);
   }
   target.classList.remove('typing');
@@ -478,6 +495,17 @@ function renderChart(container, spec) {
   if (c.type === 'hbar') wrap.style.height = Math.max(200, c.labels.length * 18 + 60) + 'px';
   new Chart(cv, chartConfig(c, false));
   if (spec.excel) toExcel(bar.querySelector('button:nth-child(3)'));
+}
+
+// JSON from the model, repaired for common slips: [,] holes, trailing commas, smart quotes
+function parseLooseJSON(text) {
+  try { return JSON.parse(text); } catch { }
+  try {
+    const fixed = text.replace(/[“”]/g, '"')
+      .replace(/\[\s*,/g, '["",').replace(/,\s*,/g, ',"",').replace(/,\s*\]/g, ',""]')
+      .replace(/,\s*([}\]])/g, '$1');
+    return JSON.parse(fixed);
+  } catch { return null; }
 }
 
 // plain text for pasting into email/chat apps (no markdown symbols)

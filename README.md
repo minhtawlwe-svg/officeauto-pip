@@ -52,6 +52,8 @@ The PC tasks (Tidy Downloads, Backup, Folder to PDF, Find duplicates, Clean temp
 | 🎤 or **Ctrl+Alt+V** | Talk to Pip; press again to send. Pip reads its answer aloud |
 | **Ctrl+Alt+Space** | Show / hide Pip |
 | Say "open YouTube" / "search YouTube for lofi music" / "open Excel" | Opens the website or program right away (Excel, Word, PowerPoint, Outlook, Notepad, Calculator, Explorer, Edge, Chrome, Teams, Paint, Snip) |
+| Say "create a new Excel file" / "new Word document" / "new PowerPoint" | Opens a blank workbook, document or presentation |
+| Say "close Notepad" / "close Excel" | Closes it politely (you still get a "Save?" prompt for unsaved work) |
 | Say "organize my downloads" | Pip shows a **▶ Run** button. Nothing runs until you click it |
 | **Right-click the character**, **Ctrl+Alt+S**, or ⚙ in the chat | Opens Settings (you can come back and change anything at any time) |
 | ⚙ Settings → Character | **Pip** (office buddy) · **Mocha & Milk** (bear couple) · **Mango** (orange cat) · **Kopi** (puppy) · **Capy** (chill capybara with a yuzu) · **Pebble** (penguin in a scarf). All are original designs with their own personality |

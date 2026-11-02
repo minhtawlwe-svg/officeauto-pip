@@ -17,7 +17,7 @@ function Get-App([string]$progId) {
     catch { return New-Object -ComObject $progId }
 }
 
-function Clean([string]$s) { ($s -replace '\*\*', '' -replace '__', '' -replace '`', '').Trim() }
+function Strip-Md([string]$s) { ($s -replace '\*\*', '' -replace '__', '' -replace '`', '').Trim() }
 
 # Burmese (Myanmar script) needs a font that has the glyphs and taller lines,
 # otherwise text shows as boxes or the stacked characters get clipped.
@@ -38,7 +38,8 @@ try {
             $xl.Visible = $true
             $wb = $xl.Workbooks.Add()
             $ws = $wb.Worksheets.Item(1)
-            $title = Clean $d.Title
+            if (@($d.Columns).Count -eq 0) { $ws.Activate(); [Console]::Out.Write('OK|New blank Excel workbook'); break }
+            $title = Strip-Md $d.Title
             if ($title) { $ws.Name = ($title -replace '[\\/\?\*\[\]:]', ' ').Substring(0, [Math]::Min(31, $title.Length)).Trim() }
             $cols = @($d.Columns); $rows = @($d.Rows)
             $arr = New-Object 'object[,]' ($rows.Count + 1), $cols.Count
@@ -63,6 +64,7 @@ try {
             $wd = Get-App 'Word.Application'
             $wd.Visible = $true
             $doc = $wd.Documents.Add()
+            if (@($d.Lines).Count -eq 0) { $doc.Activate(); [Console]::Out.Write('OK|New blank Word document'); break }
             $sel = $wd.Selection
             # built-in style ids (language-independent): Normal -1, Heading1 -2, Heading2 -3, Heading3 -4, Title -63, ListBullet -49, ListNumber -50
             $first = $true
@@ -77,7 +79,7 @@ try {
                 elseif ($line -match '^\s*\d+[.)]\s+(.*)') { $style = -50; $text = $Matches[1] }
                 if (-not $text.Trim() -and $style -eq -1) { $sel.Style = $doc.Styles.Item(-1); $sel.TypeParagraph(); continue }
                 $sel.Style = $doc.Styles.Item($style)
-                $sel.TypeText((Clean $text))
+                $sel.TypeText((Strip-Md $text))
                 $sel.TypeParagraph()
                 if ($text.Trim()) { $first = $false }
             }
@@ -93,13 +95,14 @@ try {
         'ppt' {
             $pp = Get-App 'PowerPoint.Application'
             $pres = $pp.Presentations.Add(-1)
+            if (@($d.Slides).Count -eq 0 -and -not $d.Title) { [void]$pres.Slides.Add(1, 1); [Console]::Out.Write('OK|New blank PowerPoint presentation'); break }
             $w = $pres.PageSetup.SlideWidth; $h = $pres.PageSetup.SlideHeight
             # simple clean look: teal accent bar on every slide, dark titles
             $bar = $pres.SlideMaster.Shapes.AddShape(1, 0, 0, 14, $h)
             $bar.Fill.ForeColor.RGB = 0xB4A814; $bar.Line.Visible = 0
             $s = $pres.Slides.Add(1, 1)
-            $s.Shapes.Item(1).TextFrame.TextRange.Text = (Clean $d.Title)
-            if ($s.Shapes.Count -ge 2) { $s.Shapes.Item(2).TextFrame.TextRange.Text = (Clean $d.Subtitle) }
+            $s.Shapes.Item(1).TextFrame.TextRange.Text = (Strip-Md $d.Title)
+            if ($s.Shapes.Count -ge 2) { $s.Shapes.Item(2).TextFrame.TextRange.Text = (Strip-Md $d.Subtitle) }
             if ($Burmese) {
                 Set-Font2 $s.Shapes.Item(1).TextFrame2.TextRange 1.15
                 $s.Shapes.Item(1).TextFrame2.TextRange.Font.Size = 40
@@ -110,9 +113,9 @@ try {
             foreach ($sl in @($d.Slides)) {
                 $s = $pres.Slides.Add($i, 2)
                 $title = $s.Shapes.Item(1); $body = $s.Shapes.Item(2)
-                $title.TextFrame.TextRange.Text = (Clean $sl.title)
+                $title.TextFrame.TextRange.Text = (Strip-Md $sl.title)
                 $title.TextFrame.TextRange.Font.Color.RGB = 0x4A3A1C
-                $body.TextFrame.TextRange.Text = ((@($sl.bullets) | ForEach-Object { Clean $_ }) -join "`r")
+                $body.TextFrame.TextRange.Text = ((@($sl.bullets) | ForEach-Object { Strip-Md $_ }) -join "`r")
                 if ($Burmese) {
                     Set-Font2 $title.TextFrame2.TextRange 1.1
                     $title.TextFrame2.TextRange.Font.Size = 30
