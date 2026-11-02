@@ -9,8 +9,9 @@ const TASK_LABELS = {
 const FOLDER_TASKS = ['ToPdf', 'Duplicates'];
 // programs Pip may open (names must match main.js APPS)
 const APPS = { excel: 1, word: 1, powerpoint: 1, outlook: 1, notepad: 1, calculator: 1, explorer: 1, edge: 1, chrome: 1, teams: 1, paint: 1, snip: 1 };
-const TAG_RE = /\[\[(RUN|OPEN|APP|READ):[^\]]*\]\]/g;
+const TAG_RE = /\[\[(RUN|OPEN|APP|READ|REMIND):[^\]]*\]\]/g;
 const CHART_RE = /```(?:chart|json)\s*([\s\S]*?)```/g;
+const BLOCK_RE = /```(table|slides)\s*([\s\S]*?)```/g;
 
 // spreadsheet loaded for analysis - stays loaded for follow-up questions
 let data = null;   // { name, tables, text }
@@ -73,15 +74,24 @@ function md(src) {
   const blocks = String(src).split(/```/);
   return blocks.map((b, i) => {
     if (i % 2) return '<pre><code>' + esc(b.replace(/^\w*\n/, '')) + '</code></pre>';
-    let html = '', inList = false;
+    let html = '', inList = false, tbl = [];
+    const flushTable = () => {
+      if (!tbl.length) return;
+      const rows = tbl.filter((r) => !/^\s*\|?[\s:|-]+\|?\s*$/.test(r)).map((r) => r.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim()));
+      html += '<div class="tableWrap"><table class="dataTable">' + rows.map((r, i) => '<tr>' + r.map((c) => (i ? '<td>' : '<th>') + c + (i ? '</td>' : '</th>')).join('') + '</tr>').join('') + '</table></div>';
+      tbl = [];
+    };
     for (const raw of esc(b).split('\n')) {
       let line = raw.replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+      if (/^\s*\|.*\|\s*$/.test(line)) { if (inList) { html += '</ul>'; inList = false; } tbl.push(line); continue; }
+      flushTable();
       const li = line.match(/^\s*(?:[-*]|\d+\.)\s+(.*)/);
       if (li) { if (!inList) { html += '<ul>'; inList = true; } html += '<li>' + li[1] + '</li>'; continue; }
       if (inList) { html += '</ul>'; inList = false; }
       const h = line.match(/^#{1,4}\s+(.*)/);
       html += h ? '<h4>' + h[1] + '</h4>' : (line.trim() ? line + '<br>' : '<br>');
     }
+    flushTable();
     return html + (inList ? '</ul>' : '');
   }).join('').replace(/(<br>){3,}/g, '<br><br>');
 }
@@ -96,6 +106,10 @@ const sys = (t) => addMsg('sys', esc(t));
 const errMsg = (t) => { addMsg('err', esc(t)); mood('worried', 3000); };
 
 // ---------------------------------------------------------------- system prompt
+const localStamp = (d) => {
+  const z = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`;
+};
 function systemPrompt(extra = '') {
   const now = new Date();
   const lang = settings.replyLang === 'my' ? 'Always reply in Burmese (Myanmar script); keep technical terms in English.'
@@ -115,6 +129,10 @@ function systemPrompt(extra = '') {
       `To open a program, add [[APP:name]] where name is one of: ${Object.keys(APPS).join(', ')}. ` +
       'These open immediately, so say "Opening ..." in one short sentence.',
     'Be honest about your limits: you cannot click inside other apps, read the screen, send emails or messages yourself, or control programs beyond opening them. If asked for something you cannot do, say so plainly and suggest the closest thing you can do. Never pretend you tried. Never start your reply with "Pip:".',
+    'TABLES: when the user wants a table, list or anything for Excel, output a fenced block ```table\n{"title":"Customers","columns":["Name","Phone","Amount"],"rows":[["Ko Aung","09...",150000]]}\n``` (numbers as numbers, dates YYYY-MM-DD). Pip shows it with an "Open in Excel" button. Small comparison tables in normal answers can be markdown tables.',
+    'SLIDES: when the user wants a presentation/PowerPoint, output ```slides\n{"title":"...","subtitle":"...","slides":[{"title":"...","bullets":["..."],"notes":"..."}]}\n``` (5-10 slides, max 5 short bullets each). Pip builds a real PowerPoint file from it.',
+    `REMINDERS: you CAN set reminders. Add [[REMIND:YYYY-MM-DD HH:MM|short text]] on its own line, in local time (now: ${localStamp(now)}, ${now.toLocaleDateString('en-US', { weekday: 'long' })}). "in 30 minutes" = now + 30 min; "tomorrow morning" = tomorrow 09:00. Confirm in one short sentence.`,
+    'Letters, memos, reports and minutes get an "Open in Word" button and emails (with a "Subject:" line) get an "Email draft" button automatically - so write them complete and ready to use.',
     'SPREADSHEETS: you CAN read the user\'s Excel/CSV data and draw charts. ' + (data
       ? `Data is loaded from "${data.name}":\n${dataSummary()}\n`
       : 'No data is loaded yet. If the user asks you to read, analyze or chart their Excel/data/spreadsheet, reply with one short sentence like "Let me read your Excel file." and then the tag [[READ:excel]] on its own line (never inside bold/quotes, never ask the user to type it) - Pip will load the workbook open in Excel (or ask the user to pick a file) and send you the data. Do not ask which chart they want first.\n') +
@@ -133,14 +151,14 @@ window.pip.onChunk(({ id, text }) => {
   if (!streamTarget || id !== reqSeq) return;
   streamText += text;
   const shown = streamText.replace(/^HEARD:.*\n?/, '').replace(TAG_RE, '')
-    .replace(/```(?:chart|json)[\s\S]*?(```|$)/g, '\n\u{1F4CA} drawing chart...\n');
+    .replace(/```(chart|json|table|slides)[\s\S]*?(```|$)/g, (_, k) => ({ table: '\n\u{1F4CB} building table...\n', slides: '\n\u{1F39E} writing slides...\n' }[k] || '\n\u{1F4CA} drawing chart...\n'));
   streamTarget.classList.remove('typing');
   streamTarget.innerHTML = md(shown);
   log.scrollTop = log.scrollHeight;
   if (!speechSynthesis.speaking) mood('talk');
 });
 
-async function askAI({ text = '', audio = null, display = null, extraSystem = '', tools = null, afterRead = false }) {
+async function askAI({ text = '', audio = null, display = null, extraSystem = '', tools = null, afterRead = false, copyResult = false, autoPpt = false }) {
   if (busy) return;
   busy = true; wake();
   const files = [];
@@ -180,8 +198,14 @@ async function askAI({ text = '', audio = null, display = null, extraSystem = ''
     try { const spec = JSON.parse(json); if (spec && spec.type && spec.x) { charts.push(spec); return ''; } } catch { }
     return block;
   }).trim();
+  const blocks = { table: [], slides: [] };
+  answer = answer.replace(BLOCK_RE, (block, kind, json) => {
+    try { blocks[kind].push(JSON.parse(json)); return ''; } catch { return block; }
+  }).trim();
+  const remTags = [...raw.matchAll(/\[\[REMIND:([^|\]]+)\|([^\]]+)\]\]/g)].map((m) => ({ when: m[1].trim(), text: m[2].trim() }));
   const wantsRead = /\[\[READ:/.test(raw) && !afterRead;
-  if (!answer) answer = opens.length || tasks.length || charts.length || wantsRead ? '\u{1F44D}' : heard;   // model squeezed everything onto the HEARD line
+  const anything = opens.length || tasks.length || charts.length || wantsRead || blocks.table.length || blocks.slides.length || remTags.length;
+  if (!answer) answer = anything ? '\u{1F44D}' : heard;   // model squeezed everything onto the HEARD line
   for (const o of opens.slice(0, 3)) {
     const r = o.kind === 'OPEN' ? await window.pip.openUrl(o.target) : await window.pip.openApp(o.target);
     if (r.ok) sys('↗ Opened ' + r.label); else errMsg(r.error);
@@ -189,7 +213,14 @@ async function askAI({ text = '', audio = null, display = null, extraSystem = ''
   target.classList.remove('typing');
   target.innerHTML = md(answer);
   for (const spec of charts.slice(0, 3)) renderChart(target, spec);
+  for (const spec of blocks.table.slice(0, 3)) renderTable(target, spec);
+  for (const spec of blocks.slides.slice(0, 1)) renderSlides(target, spec, autoPpt);
+  for (const r of remTags.slice(0, 5)) setReminderFromTag(r);
   addTools(target, answer, tools);
+  if (copyResult && answer && answer !== '\u{1F44D}') {
+    window.pip.copy(cleanForCopy(answer));
+    sys('✔ Result copied - paste it with Ctrl+V');
+  }
   for (const t of [...new Set(tasks)]) {
     const b = document.createElement('button');
     b.className = 'action'; b.textContent = '\u25B6 Run: ' + TASK_LABELS[t];
@@ -408,11 +439,32 @@ function renderChart(container, spec) {
   if (spec.excel) toExcel(bar.querySelector('button:nth-child(3)'));
 }
 
+// plain text for pasting into email/chat apps (no markdown symbols)
+function cleanForCopy(t) {
+  return t.replace(/^#{1,4}\s+/gm, '').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/`([^`]+)`/g, '$1').trim();
+}
+
 function addTools(el, text, extra) {
   const bar = document.createElement('div'); bar.className = 'msgTools';
   const copy = document.createElement('button'); copy.textContent = 'Copy';
-  copy.onclick = () => { window.pip.copy(text); copy.textContent = 'Copied'; setTimeout(() => (copy.textContent = 'Copy'), 1200); };
+  copy.onclick = () => { window.pip.copy(cleanForCopy(text)); copy.textContent = 'Copied'; setTimeout(() => (copy.textContent = 'Copy'), 1200); };
   bar.appendChild(copy);
+  const subject = text.match(/^\s*\**Subject:\**\s*(.*)$/m);
+  if (subject) {
+    const b = document.createElement('button'); b.textContent = 'Email draft';
+    b.onclick = () => window.pip.mailDraft(subject[1].replace(/\*/g, ''), cleanForCopy(text.replace(/^\s*\**Subject:.*$/m, '')));
+    bar.appendChild(b);
+  }
+  if (text.length > 300) {
+    const b = document.createElement('button'); b.textContent = 'Open in Word';
+    b.onclick = async () => {
+      b.disabled = true; b.textContent = 'Opening Word...';
+      const r = await window.pip.officeMake('word', { Title: '', Lines: text.replace(/^\s*\**Subject:.*$/m, '').trim().split('\n') });
+      b.disabled = false; b.textContent = 'Open in Word';
+      if (r.ok) sys('✔ Opened in Word (not saved yet - press Ctrl+S to keep it).'); else errMsg('Word: ' + r.error);
+    };
+    bar.appendChild(b);
+  }
   for (const [label, fn] of Object.entries(extra || {})) {
     const b = document.createElement('button'); b.textContent = label; b.onclick = () => fn(text); bar.appendChild(b);
   }
@@ -450,6 +502,7 @@ function speak(text) {
 $('#form').addEventListener('submit', (e) => {
   e.preventDefault();
   const t = input.value.trim();
+  if (activeSkill) { if (t || attachment) { input.value = ''; input.style.height = ''; submitSkill(t); } return; }   // skills.js
   if (!t && !attachment) return;
   input.value = ''; input.style.height = '';
   askAI({ text: t || 'Summarize this file.' });
@@ -506,15 +559,15 @@ async function runTask(task) {
   openPanel();
   sys('Running: ' + TASK_LABELS[task] + '...');
   mood('think');
-  document.querySelectorAll('#chips button[data-task]').forEach((b) => (b.disabled = true));
+  document.querySelectorAll('button[data-task]').forEach((b) => (b.disabled = true));
   const r = await window.pip.runTask(task, folder);
-  document.querySelectorAll('#chips button[data-task]').forEach((b) => (b.disabled = false));
+  document.querySelectorAll('button[data-task]').forEach((b) => (b.disabled = false));
   const lastLine = (r.out || '').split('\n').filter(Boolean).pop() || '';
   const clean = lastLine.replace(/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\s+/, '');
   if (r.ok) { sys('\u2714 ' + (clean || 'Done')); mood('happy', 1800); say('Done! ' + clean.slice(0, 100)); }
   else errMsg('Task failed: ' + (r.out || 'unknown error'));
 }
-document.querySelectorAll('#chips button[data-task]').forEach((b) => (b.onclick = () => runTask(b.dataset.task)));
+document.querySelectorAll('button[data-task]').forEach((b) => (b.onclick = () => runTask(b.dataset.task)));
 
 // ---------------------------------------------------------------- AI daily report
 async function dailyReport() {
@@ -529,15 +582,7 @@ async function dailyReport() {
     'Format: first line "Subject: Daily Report - <date>", then a greeting, then sections **Completed today**, **In progress**, **Blockers / help needed**, **Plan for tomorrow** (use unchecked to-dos), then a short sign-off' +
     (settings.userName ? ` from ${settings.userName}` : '') + '. Keep it factual, do not invent work that is not in the note. Ticked "- [x]" items are done.\n\n' +
     'DAILY NOTE:\n"""\n' + note.text + '\n"""';
-  await askAI({
-    text: ask, display: "Write today's report from my daily note",
-    tools: {
-      'Email draft': (t) => {
-        const m = t.match(/^\s*\**Subject:\**\s*(.*)$/m);
-        window.pip.mailDraft(m ? m[1].replace(/\*/g, '') : 'Daily Report', t.replace(/^\s*\**Subject:.*$/m, '').replace(/\*\*/g, '').trim());
-      },
-    },
-  });
+  await askAI({ text: ask, display: "Write today's report from my daily note" });   // Email draft / Word buttons are added automatically
 }
 $('#btnReport').onclick = dailyReport;
 

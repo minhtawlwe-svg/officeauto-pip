@@ -19,19 +19,37 @@
   </header>
 
   <div id="chips">
-    <button data-task="Organize" title="Sort Downloads into folders">&#128194; Tidy Downloads</button>
-    <button data-task="Backup" title="Zip Documents + Desktop">&#128190; Backup</button>
-    <button data-task="ToPdf" data-folder="1" title="Convert a folder of Office files to PDF">&#128196; To PDF</button>
-    <button data-task="Duplicates" data-folder="1" title="Find duplicate files">&#128269; Duplicates</button>
-    <button data-task="CleanTemp" title="Delete temp files older than 7 days">&#129529; Clean temp</button>
-    <button data-task="DailyNote" title="Open today's to-do note">&#128221; Today</button>
-    <button id="btnReport" class="ai" title="AI writes your end-of-day report">&#10024; Daily report</button>
-    <button id="btnSummarize" class="ai" title="Summarize a file">&#10024; Summarize file</button>
+    <button id="btnSkills" class="primaryChip" title="All office skills">&#129520; Skills</button>
+    <button id="btnClip" class="ai" title="Fix / translate / summarize what you copied (Ctrl+Alt+C)">&#128203; Clipboard</button>
+    <button class="ai" data-skill="email" title="Write an email">&#9993;&#65039; Email</button>
+    <button class="ai" data-skill="translate" title="Translate English / Burmese">&#127760; Translate</button>
     <button id="btnExcel" class="ai" title="Read the open Excel workbook (or pick a file) and chart it">&#128202; Excel chart</button>
+    <button id="btnReport" class="ai" title="AI writes your end-of-day report">&#10024; Daily report</button>
+    <button id="btnSummarize" class="ai" title="Summarize a file">&#128218; Summarize</button>
+    <button class="ai" data-skill="focus" id="btnFocus" title="25-minute focus timer with break reminder">&#127813; Focus</button>
+  </div>
+
+  <!-- skills sheet: filled by skills.js, PC tasks below are static -->
+  <div id="skills" class="hidden">
+    <div class="sheetHead"><h3>Skills</h3><button id="skillsClose" title="Close">&#10005;</button></div>
+    <div id="skillGroups"></div>
+    <div class="skillGroup">
+      <h4>&#128187; PC tasks</h4>
+      <div class="skillGrid">
+        <button data-task="Organize" title="Sort Downloads into folders">&#128194; Tidy Downloads</button>
+        <button data-task="Backup" title="Zip Documents + Desktop">&#128190; Backup</button>
+        <button data-task="ToPdf" data-folder="1" title="Convert a folder of Office files to PDF">&#128196; Folder to PDF</button>
+        <button data-task="Duplicates" data-folder="1" title="Find duplicate files">&#128269; Find duplicates</button>
+        <button data-task="CleanTemp" title="Delete temp files older than 7 days">&#129529; Clean temp</button>
+        <button data-task="DailyNote" title="Open today's to-do note">&#128221; Today's note</button>
+        <button data-task="Morning" title="Open your morning apps and sites">&#9728;&#65039; Morning start</button>
+      </div>
+    </div>
   </div>
 
   <div id="log"></div>
 
+  <div id="skillChip" class="hidden"><span id="skillChipName"></span><button id="skillChipX" title="Cancel skill">&#10005;</button></div>
   <div id="attach" class="hidden"><span id="attachName"></span><button id="attachX">&#10005;</button></div>
   <form id="form">
     <button type="button" id="btnFile" title="Attach a file">&#128206;</button>
@@ -182,5 +200,6 @@
 
 <script src="node_modules/chart.js/dist/chart.umd.js"></script>
 <script src="renderer.js"></script>
+<script src="skills.js"></script>
 </body>
 </html>

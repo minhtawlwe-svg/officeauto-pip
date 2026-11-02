@@ -25,6 +25,23 @@ Pip starts automatically with Windows from now on. To turn that off, untick *Sta
 
 ## Pip, the AI buddy
 
+### 🧰 Skills: everyday office work in one click
+Click **🧰 Skills**, pick a skill, and type or paste. Results go straight into **Word, Excel, PowerPoint or an email draft**.
+
+| ✍️ Write | 📊 Excel & data | 📄 Documents | 🗓️ Plan my day |
+|---|---|---|---|
+| Write email · Reply to email · Polish my text · Translate EN⇄MY · Reply to customer (Viber/FB) · Letter / memo / notice · Report draft · Meeting minutes (+ action-item table) | Excel formula helper · Text → Excel table · Analyze Excel + exact charts | Summarize file · Proofread document · Read screenshot text (OCR) · Make PowerPoint · Explain simply · Checklist / SOP | Plan my day (time-blocked) · Reminders (pop up + speak, survive restarts) · My reminders · 🍅 Focus 25 min |
+
+**📋 Clipboard (Ctrl+Alt+C)** works with any app: copy text or a screenshot (Win+Shift+S), press Ctrl+Alt+C, and choose Fix / Make formal / Translate / Summarize / Reply / Explain / To Excel table. Polished and translated text is copied back automatically, so just press **Ctrl+V**.
+
+Buttons that appear on answers automatically:
+- **Email draft** on emails (they have a `Subject:` line)
+- **Open in Word** on letters, reports and minutes
+- **Open in Excel** / **Copy for Excel** on tables
+- **Create PowerPoint** on slides
+
+The PC tasks (Tidy Downloads, Backup, Folder to PDF, Find duplicates, Clean temp, Today's note, Morning start) are in the Skills sheet too.
+
 | Do this | What happens |
 |---|---|
 | Click Pip | Opens the chat (emails, Excel formulas, translation, planning, "explain this error") |

@@ -2,7 +2,7 @@
 // Main process: transparent always-on-top window, tray, hotkeys, Gemini calls
 // (direct or via the Vercel relay), file reading and OfficeAuto task runner.
 const { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, globalShortcut,
-  session, net, safeStorage, dialog, clipboard, shell } = require('electron');
+  session, net, safeStorage, dialog, clipboard, shell, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -153,7 +153,14 @@ async function ask(req, onlyKeys) {
 
   if (settings.mode === 'relay') {
     // relay is single-turn: fold recent history into the system prompt
-    const hist = (req.history || []).map(h => `${h.role === 'user' ? 'User' : 'Pip'}: ${h.text}`).join('\n');
+    // the relay caps the system prompt at 20k chars, so keep the newest turns that fit
+    let budget = 19000 - req.system.length, hist = '';
+    for (const h of [...(req.history || [])].reverse()) {
+      const line = `${h.role === 'user' ? 'User' : 'Assistant'}: ${h.text}\n`;
+      if (line.length > budget) break;
+      hist = line + hist; budget -= line.length;
+    }
+    hist = hist.trim();
     const body = {
       system: req.system + (hist ? `\n\n--- Conversation so far ---\n${hist}` : ''),
       type: req.audio ? 'audio' : 'text',
@@ -425,11 +432,64 @@ function runTask(task, folder) {
   });
 }
 
+// ---------------------------------------------------------------- Office files (Excel table / Word / PowerPoint)
+function runOfficeScript(script, args, payload) {
+  return new Promise((resolve) => {
+    const json = path.join(app.getPath('temp'), `pip-office-${Date.now()}.json`);
+    fs.writeFileSync(json, JSON.stringify(payload), 'utf8');
+    const ps = spawn(path.join(process.env.WINDIR, 'System32\\WindowsPowerShell\\v1.0\\powershell.exe'),
+      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, script), ...args, '-Json', json], { windowsHide: true });
+    let out = '';
+    ps.stdout.on('data', (d) => out += d); ps.stderr.on('data', (d) => out += d);
+    ps.on('close', () => {
+      fs.rmSync(json, { force: true });
+      const [status, msg] = out.trim().split('|');
+      resolve(status === 'OK' ? { ok: true, msg } : { ok: false, error: msg || out.trim().slice(0, 200) || 'failed' });
+    });
+  });
+}
+
+// ---------------------------------------------------------------- reminders (survive restarts)
+const REM_FILE = () => path.join(app.getPath('userData'), 'reminders.json');
+let reminders = [];
+function loadReminders() { try { reminders = JSON.parse(fs.readFileSync(REM_FILE(), 'utf8')); } catch { reminders = []; } }
+function saveReminders() { fs.writeFileSync(REM_FILE(), JSON.stringify(reminders.filter(r => !r.done || Date.now() - r.at < 864e5), null, 2)); }
+function addReminder(at, text) {
+  const r = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), at: Number(at), text: String(text).slice(0, 300), done: false };
+  reminders.push(r); saveReminders();
+  return r;
+}
+function checkReminders() {
+  const now = Date.now();
+  let changed = false;
+  for (const r of reminders) {
+    if (r.done || r.at > now) continue;
+    r.done = true; changed = true;
+    const late = now - r.at > 10 * 60 * 1000;
+    if (win) { if (!win.isVisible()) win.showInactive(); win.webContents.send('reminder:due', { ...r, late }); }
+    if (Notification.isSupported()) new Notification({ title: '⏰ Reminder' + (late ? ' (missed)' : ''), body: r.text }).show();
+  }
+  if (changed) saveReminders();
+}
+
 // ---------------------------------------------------------------- IPC
 function registerIpc() {
   ipcMain.on('win:ignore', (_e, ignore) => win.setIgnoreMouseEvents(ignore, { forward: true }));
   ipcMain.on('win:move', (_e, { x, y }) => win.setPosition(Math.round(x), Math.round(y)));
   ipcMain.on('win:hide', () => win.hide());
+  ipcMain.on('win:show', () => { if (!win.isVisible()) win.showInactive(); });
+  ipcMain.handle('office:make', (_e, { kind, payload }) => runOfficeScript('office-make.ps1', ['-Kind', kind], payload));
+  ipcMain.handle('clip:read', () => {
+    let img = clipboard.readImage(), image = null;
+    if (!img.isEmpty()) {
+      if (img.getSize().width > 1600) img = img.resize({ width: 1600 });
+      image = img.toPNG().toString('base64');
+    }
+    return { text: clipboard.readText(), image };
+  });
+  ipcMain.handle('remind:add', (_e, { at, text }) => addReminder(at, text));
+  ipcMain.handle('remind:list', () => reminders.filter(r => !r.done).sort((a, b) => a.at - b.at));
+  ipcMain.handle('remind:remove', (_e, id) => { reminders = reminders.filter(r => r.id !== id); saveReminders(); return true; });
   ipcMain.handle('win:pos', () => win.getPosition());
   ipcMain.handle('settings:get', () => publicSettings());
   ipcMain.handle('settings:set', (_e, patch) => { saveSettings(patch); refreshTray(); return publicSettings(); });
@@ -502,6 +562,7 @@ if (!app.requestSingleInstanceLock()) app.quit();
 app.on('second-instance', () => { if (win) { win.show(); win.webContents.send('ui:open', 'chat'); } });
 
 app.whenReady().then(() => {
+  app.setAppUserModelId('OfficeAuto.Pip');   // so Windows notifications show our name
   loadSettings();
   applyProxy();
   applyAutoStart();
@@ -511,6 +572,10 @@ app.whenReady().then(() => {
   createTray();
   globalShortcut.register('Control+Alt+Space', toggle);
   globalShortcut.register('Control+Alt+V', () => { win.show(); win.webContents.send('ui:ptt'); });
+  globalShortcut.register('Control+Alt+C', () => { win.show(); win.webContents.send('ui:clipboard'); });
+  loadReminders();
+  setInterval(checkReminders, 15000);
+  setTimeout(checkReminders, 5000);
 });
 app.on('will-quit', () => globalShortcut.unregisterAll());
 app.on('window-all-closed', () => app.quit());
