@@ -30,6 +30,7 @@ Pip starts automatically with Windows from now on. To turn that off, untick *Sta
 | Click Pip | Opens the chat (emails, Excel formulas, translation, planning, "explain this error") |
 | Drag Pip | Moves it anywhere |
 | Drop a PDF, DOCX, TXT, CSV or image on Pip, or use 📎 | Summary, key points, action items |
+| **📊 Excel chart**, or say "read my Excel data and show a chart" | Reads the workbook **open in Excel** (or a file you pick: .xlsx / .xls / .csv), explains it, and draws charts in the chat. Gemini only chooses the chart; **Pip calculates every number from all rows**, so totals are exact. Buttons: Copy image (white background for Word/email), Save PNG, Numbers, Copy numbers |
 | **✨ Daily report** | Turns today's note into a report email for your manager (Copy / Email draft) |
 | 🎤 or **Ctrl+Alt+V** | Talk to Pip; press again to send. Pip reads its answer aloud |
 | **Ctrl+Alt+Space** | Show / hide Pip |

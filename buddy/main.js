@@ -85,7 +85,7 @@ function applyProxy() {
 // ---------------------------------------------------------------- window
 function createWindow() {
   const { workArea } = screen.getPrimaryDisplay();
-  const W = 400, H = 560;
+  const W = 420, H = Math.min(700, workArea.height - 20);
   win = new BrowserWindow({
     width: W, height: H,
     x: workArea.x + workArea.width - W - 20, y: workArea.y + workArea.height - H,
@@ -258,13 +258,126 @@ async function readFileForAI(p) {
     const { value } = await mammoth.extractRawText({ path: p });
     return { name, text: value.slice(0, 150000) };
   }
+  if (['.xlsx', '.xlsm', '.xls', '.csv'].includes(ext)) {
+    const tables = ext === '.csv' ? [csvTable(fs.readFileSync(p, 'utf8'), path.basename(p, ext))] : await excelTables(p);
+    if (!tables.some(t => t.rows.length)) throw new Error(`${name} has no data rows.`);
+    return { name, text: tablesToText(tables), tables };
+  }
   if (TEXT_EXT.includes(ext)) return { name, text: fs.readFileSync(p, 'utf8').slice(0, 150000) };
   if (MIME[ext]) {
     const size = fs.statSync(p).size;
     if (size > limit) throw new Error(`${name} is ${(size / 1048576).toFixed(1)} MB - too big (max ${(limit / 1048576).toFixed(1)} MB in ${settings.mode} mode).`);
     return { name, inline: { mimeType: MIME[ext], data: fs.readFileSync(p).toString('base64') } };
   }
-  throw new Error(`Can't read ${ext} files yet. Try PDF, DOCX, TXT, CSV, MD or an image.`);
+  throw new Error(`Can't read ${ext} files yet. Try Excel, CSV, PDF, DOCX, TXT or an image.`);
+}
+
+// ---------------------------------------------------------------- spreadsheets -> tables
+// A table is { sheet, columns: [..], rows: [[..], ..] }. The renderer charts from these real
+// values; the AI only gets a text preview and picks columns.
+const MAX_ROWS = 20000;
+
+function cellValue(v) {
+  if (v === null || v === undefined) return '';
+  if (Object.prototype.toString.call(v) === '[object Date]') return isNaN(v) ? '' : v.toISOString().slice(0, 10);
+  if (typeof v === 'object') {
+    if ('result' in v) return cellValue(v.result);                       // formula
+    if (Array.isArray(v.richText)) return v.richText.map(r => r.text).join('');
+    if ('text' in v) return String(v.text);                              // hyperlink
+    if ('error' in v) return '';
+    return '';
+  }
+  return v;
+}
+
+function toTable(sheet, grid) {
+  grid = grid.filter(r => r.some(c => c !== ''));
+  if (!grid.length) return { sheet, columns: [], rows: [] };
+  const width = Math.max(...grid.map(r => r.length));
+  const columns = Array.from({ length: width }, (_, i) => String(grid[0][i] ?? '').trim() || `Column ${i + 1}`);
+  const rows = grid.slice(1, MAX_ROWS + 1).map(r => Array.from({ length: width }, (_, i) => r[i] ?? ''));
+  return { sheet, columns, rows, truncated: grid.length - 1 > MAX_ROWS };
+}
+
+async function excelTables(p) {
+  let file = p;
+  if (path.extname(p).toLowerCase() === '.xls') file = await xlsToXlsx(p);   // old format: let Excel convert it
+  const ExcelJS = require('exceljs');
+  const wb = new ExcelJS.Workbook();
+  try { await wb.xlsx.load(fs.readFileSync(file)); }
+  catch (e) { throw new Error(`Couldn't read ${path.basename(p)}: ${e.code === 'EBUSY' ? 'file is locked' : e.message}`); }
+  const tables = [];
+  wb.eachSheet(ws => {
+    if (tables.length >= 5) return;
+    const grid = [];
+    ws.eachRow({ includeEmpty: false }, row => {
+      const vals = row.values.slice(1).map(cellValue);    // row.values is 1-based
+      grid.push(vals);
+    });
+    const t = toTable(ws.name, grid);
+    if (t.rows.length) tables.push(t);
+  });
+  return tables;
+}
+
+function xlsToXlsx(p) {
+  const out = path.join(app.getPath('temp'), `pip-${Date.now()}.xlsx`);
+  const ps = `$x=New-Object -ComObject Excel.Application;$x.DisplayAlerts=$false;$w=$x.Workbooks.Open([string]'${p.replace(/'/g, "''")}',0,$true);$w.SaveAs([string]'${out}',51);$w.Close($false);$x.Quit()`;
+  return new Promise((resolve, reject) => {
+    const c = spawn(path.join(process.env.WINDIR, 'System32\\WindowsPowerShell\\v1.0\\powershell.exe'), ['-NoProfile', '-Command', ps], { windowsHide: true });
+    c.on('close', () => fs.existsSync(out) ? resolve(out) : reject(new Error('Old .xls format needs Microsoft Excel - or save it as .xlsx first.')));
+  });
+}
+
+function csvTable(text, sheet) {
+  const rows = [];
+  let row = [], cell = '', q = false;
+  const delim = (text.split('\n')[0].match(/;/g) || []).length > (text.split('\n')[0].match(/,/g) || []).length ? ';' : ',';
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) {
+      if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+      else if (ch === '"') q = false;
+      else cell += ch;
+    } else if (ch === '"') q = true;
+    else if (ch === delim) { row.push(cell); cell = ''; }
+    else if (ch === '\n') { row.push(cell.replace(/\r$/, '')); rows.push(row); row = []; cell = ''; }
+    else cell += ch;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  return toTable(sheet, rows.map(r => r.map(c => c.trim())));
+}
+
+const csvCell = v => { const s = String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+
+function tablesToText(tables) {
+  let budget = 60000;
+  return tables.map(t => {
+    const head = `### Sheet "${t.sheet}": ${t.rows.length}${t.truncated ? '+' : ''} rows. Columns: ${t.columns.join(' | ')}`;
+    const lines = [t.columns.map(csvCell).join(',')];
+    for (const r of t.rows) {
+      const line = r.map(csvCell).join(',');
+      if (budget - line.length < 0) { lines.push(`... (${t.rows.length - lines.length + 1} more rows not shown - Pip has them all for charts)`); break; }
+      budget -= line.length; lines.push(line);
+    }
+    return head + '\n' + lines.join('\n');
+  }).join('\n\n');
+}
+
+// Path of the workbook currently open in Excel (if any). Uses the running Excel via COM.
+function activeExcelPath() {
+  const ps = "try{$x=[Runtime.InteropServices.Marshal]::GetActiveObject('Excel.Application');$w=$x.ActiveWorkbook;if($w){[Console]::Out.Write($w.FullName+'|'+$w.Saved)}}catch{}";
+  return new Promise(resolve => {
+    const c = spawn(path.join(process.env.WINDIR, 'System32\\WindowsPowerShell\\v1.0\\powershell.exe'), ['-NoProfile', '-Command', ps], { windowsHide: true });
+    let out = '';
+    c.stdout.on('data', d => out += d);
+    c.on('close', () => {
+      const [full, saved] = out.trim().split('|');
+      if (!full) return resolve({ open: false });
+      if (!/[\\/]/.test(full)) return resolve({ open: true, unsaved: true, name: full });   // "Book1" - never saved
+      resolve({ open: true, path: full, name: path.basename(full), saved: saved === 'True' });
+    });
+  });
 }
 
 // ---------------------------------------------------------------- OfficeAuto bridge
@@ -316,7 +429,7 @@ function registerIpc() {
     try { return { ok: true, ...(await readFileForAI(p)) }; } catch (err) { return { ok: false, error: String(err.message || err) }; }
   });
   ipcMain.handle('file:pick', async () => {
-    const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters: [{ name: 'Documents', extensions: ['pdf', 'docx', 'txt', 'md', 'csv', 'json', 'log', 'png', 'jpg', 'jpeg', 'webp'] }] });
+    const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters: [{ name: 'Documents', extensions: ['xlsx', 'xlsm', 'xls', 'csv', 'pdf', 'docx', 'txt', 'md', 'json', 'log', 'png', 'jpg', 'jpeg', 'webp'] }] });
     return r.canceled ? null : r.filePaths[0];
   });
   ipcMain.handle('folder:pick', async () => {
@@ -343,6 +456,14 @@ function registerIpc() {
     spawn('cmd.exe', ['/d', '/s', '/c', `start "" ${target}`],
       { windowsHide: true, detached: true, stdio: 'ignore', windowsVerbatimArguments: true }).unref();
     return { ok: true, label: key };
+  });
+  ipcMain.handle('excel:active', () => activeExcelPath());
+  ipcMain.handle('clip:image', (_e, dataUrl) => { clipboard.writeImage(nativeImage.createFromDataURL(dataUrl)); return true; });
+  ipcMain.handle('file:savePng', async (_e, { dataUrl, name }) => {
+    const r = await dialog.showSaveDialog(win, { defaultPath: path.join(app.getPath('documents'), name), filters: [{ name: 'PNG image', extensions: ['png'] }] });
+    if (r.canceled) return null;
+    fs.writeFileSync(r.filePath, Buffer.from(dataUrl.split(',')[1], 'base64'));
+    return r.filePath;
   });
   ipcMain.handle('clip:write', (_e, t) => { clipboard.writeText(t); return true; });
   ipcMain.handle('mail:draft', (_e, { subject, body }) =>

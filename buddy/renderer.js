@@ -9,7 +9,11 @@ const TASK_LABELS = {
 const FOLDER_TASKS = ['ToPdf', 'Duplicates'];
 // programs Pip may open (names must match main.js APPS)
 const APPS = { excel: 1, word: 1, powerpoint: 1, outlook: 1, notepad: 1, calculator: 1, explorer: 1, edge: 1, chrome: 1, teams: 1, paint: 1, snip: 1 };
-const TAG_RE = /\[\[(RUN|OPEN|APP):[^\]]*\]\]/g;
+const TAG_RE = /\[\[(RUN|OPEN|APP|READ):[^\]]*\]\]/g;
+const CHART_RE = /```(?:chart|json)\s*([\s\S]*?)```/g;
+
+// spreadsheet loaded for analysis - stays loaded for follow-up questions
+let data = null;   // { name, tables, text }
 
 let settings = {}, history = [], attachment = null, busy = false, reqSeq = 0;
 let streamTarget = null, streamText = '';
@@ -108,7 +112,14 @@ function systemPrompt(extra = '') {
     'To open a website, add a tag on its own line: [[OPEN:https://full-url]] (e.g. YouTube = [[OPEN:https://www.youtube.com]]; for a search use the site\'s search URL, e.g. [[OPEN:https://www.youtube.com/results?search_query=lofi+music]]). ' +
       `To open a program, add [[APP:name]] where name is one of: ${Object.keys(APPS).join(', ')}. ` +
       'These open immediately, so say "Opening ..." in one short sentence.',
-    'Be honest about your limits: you cannot click inside other apps, read the screen, send emails or messages yourself, or control programs beyond opening them. If asked for something you cannot do, say so plainly and suggest the closest thing you can do. Never pretend you tried.',
+    'Be honest about your limits: you cannot click inside other apps, read the screen, send emails or messages yourself, or control programs beyond opening them. If asked for something you cannot do, say so plainly and suggest the closest thing you can do. Never pretend you tried. Never start your reply with "Pip:".',
+    'SPREADSHEETS: you CAN read the user\'s Excel/CSV data and draw charts. ' + (data
+      ? `Data is loaded from "${data.name}":\n${dataSummary()}\n`
+      : 'No data is loaded yet. If the user asks you to read, analyze or chart their Excel/data/spreadsheet, reply with one short sentence like "Let me read your Excel file." plus the tag [[READ:excel]] - Pip will load the workbook open in Excel (or ask the user to pick a file) and send you the data. Do not ask which chart they want first.\n') +
+      'To draw a chart, output a fenced block exactly like:\n```chart\n{"type":"bar","title":"Sales by Region","sheet":"Sheet1","x":"Region","y":"Sales","agg":"sum","top":10}\n```\n' +
+      'type: bar | hbar | line | pie | doughnut. x = category or date column (exact column name). y = numeric column name, or a list of names, or omit to count rows. agg: sum | avg | count | max | min. ' +
+      'Optional "bucket":"day"|"month"|"year" when x holds dates (use line charts for trends over time). Optional "sort":"desc"|"asc"|"none". ' +
+      'Pip computes the exact numbers from ALL rows and shows them under the chart, so NEVER state totals or numbers you did not see in the data - describe patterns instead. If the user asks for "a good chart", pick the most useful one yourself (max 3 charts).',
     'If the input is a voice recording: line 1 is "HEARD: <exactly what the user said>" and nothing else (no reply, no tags on that line). Then a NEW line with your reply and any tags. Example:\nHEARD: open Facebook\nOpening Facebook.\n[[OPEN:https://www.facebook.com]]\nIf the recording has no clear speech, reply only "HEARD: (nothing)".',
     extra,
   ].filter(Boolean).join('\n');
@@ -118,14 +129,15 @@ function systemPrompt(extra = '') {
 window.pip.onChunk(({ id, text }) => {
   if (!streamTarget || id !== reqSeq) return;
   streamText += text;
-  const shown = streamText.replace(/^HEARD:.*\n?/, '').replace(TAG_RE, '');
+  const shown = streamText.replace(/^HEARD:.*\n?/, '').replace(TAG_RE, '')
+    .replace(/```(?:chart|json)[\s\S]*?(```|$)/g, '\n\u{1F4CA} drawing chart...\n');
   streamTarget.classList.remove('typing');
   streamTarget.innerHTML = md(shown);
   log.scrollTop = log.scrollHeight;
   if (!speechSynthesis.speaking) mood('talk');
 });
 
-async function askAI({ text = '', audio = null, display = null, extraSystem = '', tools = null }) {
+async function askAI({ text = '', audio = null, display = null, extraSystem = '', tools = null, afterRead = false }) {
   if (busy) return;
   busy = true; wake();
   const files = [];
@@ -159,13 +171,21 @@ async function askAI({ text = '', audio = null, display = null, extraSystem = ''
     if ((!heard || /^\(nothing\)$/i.test(heard)) && !opens.length && !tasks.length) { voiceEl.remove(); target.remove(); say("I didn't catch that - try again?"); sys("Didn't hear any speech."); mood('worried', 2000); return null; }
     voiceEl.innerHTML = '&#127908; ' + esc(heard || '(voice)');
   }
-  if (!answer) answer = opens.length || tasks.length ? '\u{1F44D}' : heard;   // model squeezed everything onto the HEARD line
+  answer = answer.replace(/^\s*Pip:\s*/i, '');
+  const charts = [];
+  answer = answer.replace(CHART_RE, (block, json) => {
+    try { const spec = JSON.parse(json); if (spec && spec.type && spec.x) { charts.push(spec); return ''; } } catch { }
+    return block;
+  }).trim();
+  const wantsRead = /\[\[READ:/.test(raw) && !afterRead;
+  if (!answer) answer = opens.length || tasks.length || charts.length || wantsRead ? '\u{1F44D}' : heard;   // model squeezed everything onto the HEARD line
   for (const o of opens.slice(0, 3)) {
     const r = o.kind === 'OPEN' ? await window.pip.openUrl(o.target) : await window.pip.openApp(o.target);
     if (r.ok) sys('↗ Opened ' + r.label); else errMsg(r.error);
   }
   target.classList.remove('typing');
   target.innerHTML = md(answer);
+  for (const spec of charts.slice(0, 3)) renderChart(target, spec);
   addTools(target, answer, tools);
   for (const t of [...new Set(tasks)]) {
     const b = document.createElement('button');
@@ -178,8 +198,178 @@ async function askAI({ text = '', audio = null, display = null, extraSystem = ''
   const histUser = heard || (usedAttachment ? `[file ${usedAttachment.name}] ${text}` : text);
   history.push({ role: 'user', text: histUser.slice(0, 4000) }, { role: 'model', text: answer.slice(0, 4000) });
   if (panel.classList.contains('hidden')) say(answer.replace(/[#*`]/g, '').slice(0, 140) + (answer.length > 140 ? '...' : ''), 9000);
+  if (wantsRead) {
+    // the model asked for the data: load it, then repeat the user's request with the data attached
+    const request = heard || text;
+    if (await loadData()) return askAI({ text: request, display: false, afterRead: true });
+    return answer;
+  }
   speak(answer);
   return answer;
+}
+
+// ---------------------------------------------------------------- spreadsheet data + charts
+function dataSummary() {
+  return data.tables.map((t) => `- sheet "${t.sheet}": ${t.rows.length} rows; columns: ${t.columns.map((c, i) => `${c} (${colKind(t, i)})`).join(', ')}`).join('\n')
+    + '\nFirst rows:\n' + data.text.split('\n').slice(0, 25).join('\n').slice(0, 5000);
+}
+
+function toNum(v) {
+  if (typeof v === 'number') return v;
+  const n = parseFloat(String(v).replace(/[,\s$€£¥%]|MMK|Ks/gi, ''));
+  return Number.isFinite(n) ? n : null;
+}
+function toDate(v) {
+  if (typeof v === 'number' && v > 20000 && v < 80000) return new Date(Math.round((v - 25569) * 864e5));   // Excel serial date
+  if (typeof v === 'string' && /^\d{4}-\d\d-\d\d/.test(v)) return new Date(v);
+  if (typeof v === 'string' && /\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}/.test(v)) { const d = new Date(v); return isNaN(d) ? null : d; }
+  return null;
+}
+function colKind(t, i) {
+  const sample = t.rows.slice(0, 200).map((r) => r[i]).filter((v) => v !== '');
+  if (!sample.length) return 'empty';
+  if (sample.filter((v) => toDate(v)).length > sample.length * 0.8) return 'date';
+  if (sample.filter((v) => toNum(v) !== null).length > sample.length * 0.8) return 'number';
+  return 'text';
+}
+
+async function loadData() {
+  let p = null;
+  const a = await window.pip.activeExcel();
+  if (a.open && a.unsaved) sys(`"${a.name}" in Excel has never been saved - press Ctrl+S in Excel first, or pick a file now.`);
+  else if (a.path) {
+    p = a.path;
+    sys(`\u{1F4CA} Reading the workbook open in Excel: ${a.name}` + (a.saved ? '' : '\n(using the last saved version - press Ctrl+S in Excel to include new edits)'));
+  }
+  if (!p) p = await window.pip.pickFile();
+  if (!p) { sys('No file chosen.'); mood('idle'); return false; }
+  return attachPath(p);
+}
+
+function findCol(t, name) {
+  const n = String(name || '').trim().toLowerCase();
+  let i = t.columns.findIndex((c) => c.toLowerCase() === n);
+  if (i < 0) i = t.columns.findIndex((c) => c.toLowerCase().includes(n) || n.includes(c.toLowerCase()));
+  return i;
+}
+
+const PALETTE = ['#14a8b4', '#8b7cff', '#f2b33d', '#ef6f8b', '#39c27f', '#4d9bff', '#ff9f5a', '#b6e35a', '#c084fc', '#7dd3fc'];
+
+function computeChart(spec) {
+  if (!data) throw new Error('No data loaded - click \u{1F4CA} Excel chart or attach an Excel file first.');
+  const t = data.tables.find((x) => x.sheet.toLowerCase() === String(spec.sheet || '').toLowerCase()) || data.tables[0];
+  const xi = findCol(t, spec.x);
+  if (xi < 0) throw new Error(`Column "${spec.x}" not found. Columns: ${t.columns.join(', ')}`);
+  const ys = [].concat(spec.y || []).filter(Boolean);
+  const yi = ys.map((y) => { const i = findCol(t, y); if (i < 0) throw new Error(`Column "${y}" not found. Columns: ${t.columns.join(', ')}`); return i; });
+  const agg = ys.length ? (spec.agg || 'sum').toLowerCase() : 'count';
+  const bucket = spec.bucket;
+  const groups = new Map();
+  let used = 0;
+  for (const r of t.rows) {
+    let key = r[xi];
+    if (bucket) {
+      const d = toDate(key); if (!d) continue;
+      const iso = d.toISOString();
+      key = bucket === 'year' ? iso.slice(0, 4) : bucket === 'month' ? iso.slice(0, 7) : iso.slice(0, 10);
+    }
+    key = String(key).trim();
+    if (!key) continue;   // empty category cell: skip the row
+    if (!groups.has(key)) groups.set(key, { n: 0, v: yi.map(() => ({ sum: 0, n: 0, min: Infinity, max: -Infinity })) });
+    const g = groups.get(key); g.n++; used++;
+    yi.forEach((ci, k) => {
+      const num = toNum(r[ci]); if (num === null) return;
+      const s = g.v[k]; s.sum += num; s.n++; s.min = Math.min(s.min, num); s.max = Math.max(s.max, num);
+    });
+  }
+  const val = (g, k) => {
+    if (agg === 'count' || !yi.length) return g.n;
+    const s = g.v[k]; if (!s.n) return 0;
+    return agg === 'avg' ? s.sum / s.n : agg === 'min' ? s.min : agg === 'max' ? s.max : s.sum;
+  };
+  let rows = [...groups.entries()].map(([label, g]) => ({ label, vals: (yi.length ? yi : [0]).map((_, k) => val(g, k)) }));
+  const type = String(spec.type).toLowerCase();
+  const timeLike = bucket || type === 'line' || colKind(t, xi) === 'date';
+  const sort = spec.sort || (timeLike ? 'asc-label' : 'desc');
+  if (sort === 'desc') rows.sort((a, b) => b.vals[0] - a.vals[0]);
+  else if (sort === 'asc') rows.sort((a, b) => a.vals[0] - b.vals[0]);
+  else if (sort === 'asc-label') rows.sort((a, b) => (a.label > b.label ? 1 : -1));
+  const round = (n) => Math.round(n * 100) / 100;
+  const pieLike = type === 'pie' || type === 'doughnut';
+  const top = Number(spec.top) || (pieLike ? 8 : timeLike ? 400 : 15);
+  if (rows.length > top) {
+    if (pieLike) {
+      const rest = rows.slice(top - 1);
+      rows = rows.slice(0, top - 1).concat({ label: `Other (${rest.length})`, vals: [rest.reduce((s, r) => s + r.vals[0], 0)] });
+    } else rows = rows.slice(0, top);
+  }
+  const what = yi.length ? `${agg} of ${ys.join(', ')}` : 'count of rows';
+  return {
+    type, title: spec.title || `${what} by ${t.columns[xi]}`, labels: rows.map((r) => r.label),
+    datasets: (yi.length ? ys : ['Count']).map((name, k) => ({ label: yi.length ? t.columns[yi[k]] : 'Count', data: rows.map((r) => round(r.vals[k])) })),
+    caption: `${what} by ${t.columns[xi]}${bucket ? ` (per ${bucket})` : ''} · from ${used} rows of "${t.sheet}"`,
+  };
+}
+
+function chartConfig(c, light) {
+  const fg = light ? '#333' : '#c9cbe6', grid = light ? 'rgba(0,0,0,.08)' : 'rgba(255,255,255,.08)';
+  const pieLike = c.type === 'pie' || c.type === 'doughnut';
+  return {
+    type: c.type === 'hbar' ? 'bar' : pieLike || c.type === 'line' ? c.type : 'bar',
+    data: {
+      labels: c.labels,
+      datasets: c.datasets.map((d, i) => ({
+        ...d,
+        backgroundColor: pieLike ? c.labels.map((_, j) => PALETTE[j % PALETTE.length]) : PALETTE[i % PALETTE.length] + (c.type === 'line' ? '33' : ''),
+        borderColor: pieLike ? (light ? '#fff' : '#232641') : PALETTE[i % PALETTE.length],
+        borderWidth: pieLike ? 2 : c.type === 'line' ? 2 : 0, fill: c.type === 'line' && c.datasets.length === 1, tension: 0.3,
+        pointRadius: c.labels.length > 40 ? 0 : 2, borderRadius: 4,
+      })),
+    },
+    options: {
+      indexAxis: c.type === 'hbar' ? 'y' : 'x', responsive: !light, maintainAspectRatio: false, animation: light ? false : { duration: 500 },
+      plugins: {
+        title: { display: true, text: c.title, color: fg, font: { size: light ? 18 : 12, weight: '600' } },
+        legend: { display: pieLike || c.datasets.length > 1, position: pieLike ? 'right' : 'top', labels: { color: fg, boxWidth: 10, font: { size: light ? 13 : 10 } } },
+      },
+      scales: pieLike ? {} : {
+        x: { ticks: { color: fg, font: { size: light ? 12 : 9 }, maxRotation: 50 }, grid: { color: grid } },
+        y: { ticks: { color: fg, font: { size: light ? 12 : 9 } }, grid: { color: grid }, beginAtZero: true },
+      },
+    },
+  };
+}
+
+// light, white-background copy for pasting into Word/email
+function exportPng(c) {
+  const cv = document.createElement('canvas'); cv.width = 900; cv.height = 520;
+  const bg = { id: 'bg', beforeDraw: (ch) => { const x = ch.ctx; x.save(); x.fillStyle = '#fff'; x.fillRect(0, 0, ch.width, ch.height); x.restore(); } };
+  const cfg = chartConfig(c, true); cfg.plugins = [bg];
+  const ch = new Chart(cv, cfg);
+  const url = cv.toDataURL('image/png'); ch.destroy();
+  return url;
+}
+
+function renderChart(container, spec) {
+  let c;
+  try { c = computeChart(spec); } catch (e) { const er = document.createElement('div'); er.className = 'chartErr'; er.textContent = '⚠ ' + e.message; container.appendChild(er); return; }
+  const box = document.createElement('div'); box.className = 'chart';
+  const wrap = document.createElement('div'); wrap.className = 'chartCanvas';
+  const cv = document.createElement('canvas'); wrap.appendChild(cv); box.appendChild(wrap);
+  const cap = document.createElement('div'); cap.className = 'chartCap'; cap.textContent = c.caption; box.appendChild(cap);
+  const tbl = document.createElement('table'); tbl.className = 'chartTable hidden';
+  tbl.innerHTML = `<tr><th>${esc(spec.x)}</th>${c.datasets.map((d) => `<th>${esc(d.label)}</th>`).join('')}</tr>` +
+    c.labels.map((l, i) => `<tr><td>${esc(l)}</td>${c.datasets.map((d) => `<td>${d.data[i].toLocaleString()}</td>`).join('')}</tr>`).join('');
+  const bar = document.createElement('div'); bar.className = 'msgTools';
+  const btn = (label, fn) => { const b = document.createElement('button'); b.textContent = label; b.onclick = () => fn(b); bar.appendChild(b); };
+  btn('Copy image', async (b) => { await window.pip.copyImage(exportPng(c)); b.textContent = 'Copied ✔'; setTimeout(() => (b.textContent = 'Copy image'), 1500); });
+  btn('Save PNG', async () => { const f = await window.pip.savePng(exportPng(c), (c.title.replace(/[^\w -]+/g, '').trim() || 'chart') + '.png'); if (f) sys('Saved ' + f); });
+  btn('Numbers', () => tbl.classList.toggle('hidden'));
+  btn('Copy numbers', () => window.pip.copy([[spec.x, ...c.datasets.map((d) => d.label)].join('\t'), ...c.labels.map((l, i) => [l, ...c.datasets.map((d) => d.data[i])].join('\t'))].join('\n')));
+  box.appendChild(bar); box.appendChild(tbl);
+  container.appendChild(box);
+  if (c.type === 'hbar') wrap.style.height = Math.max(200, c.labels.length * 18 + 60) + 'px';
+  new Chart(cv, chartConfig(c, false));
 }
 
 function addTools(el, text, extra) {
@@ -239,6 +429,10 @@ async function attachPath(p) {
   const r = await window.pip.readFile(p);
   if (!r.ok) { errMsg(r.error); return false; }
   attachment = r;
+  if (r.tables) {
+    data = { name: r.name, tables: r.tables, text: r.text };
+    sys(`\u{1F4CA} Loaded ${r.name}: ` + r.tables.map((t) => `"${t.sheet}" ${t.rows.length} rows × ${t.columns.length} columns`).join(', '));
+  }
   $('#attachName').textContent = '\u{1F4CE} ' + r.name;
   $('#attach').classList.remove('hidden');
   return true;
@@ -253,6 +447,10 @@ async function summarizePath(p) {
   if (await attachPath(p)) askAI({ text: SUMMARY_ASK, display: 'Summarize ' + attachment.name });
 }
 $('#btnSummarize').onclick = async () => { const p = await window.pip.pickFile(); if (p) summarizePath(p); };
+$('#btnExcel').onclick = async () => {
+  openPanel();
+  if (await loadData()) askAI({ text: 'Analyze this data: what it contains, 3-5 key insights (patterns, not invented numbers), and the 1-2 most useful charts.', display: 'Analyze ' + data.name });
+};
 
 // drag a file from Explorer onto Pip or the panel
 const dropEl = $('#drop');
