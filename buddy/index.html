@@ -62,26 +62,52 @@
   <!-- settings sheet -->
   <div id="settings" class="hidden">
     <h3>Settings</h3>
-    <label>Gemini API key(s) <a id="keyLink" href="#">get one free</a>
-      <textarea id="sKey" rows="2" spellcheck="false" placeholder="paste key - one per line to add several (auto-switch when one runs out)"></textarea>
-    </label>
-    <div id="keyStatus"></div>
-    <div class="keyBtns">
-      <button id="sTest" type="button">Test keys</button>
-      <button id="sShow" type="button">Show</button>
-      <button id="sClearKeys" type="button">Remove saved keys</button>
+
+    <div class="secHead"><b>AI providers</b><button id="pAdd" type="button">+ Add</button></div>
+    <div id="pList"></div>
+    <div id="pAddMenu" class="hidden"></div>
+    <label class="row"><input id="sFallback" type="checkbox"> If one provider fails, try the next one automatically</label>
+
+    <!-- provider editor -->
+    <div id="pEdit" class="hidden">
+      <div class="secHead"><b id="pEditTitle">Provider</b><a id="pKeyLink" href="#">get a key</a></div>
+      <div id="pNote" class="pNote"></div>
+      <label>Name <input id="pName"></label>
+      <label class="pGemini">Connection
+        <select id="pMode">
+          <option value="relay">Relay (works in Myanmar, no VPN)</option>
+          <option value="direct">Direct to Google (VPN or proxy)</option>
+        </select>
+      </label>
+      <label class="pGemini pRelay">Relay URL <input id="pRelay"></label>
+      <label class="pOpenAI">API base URL <input id="pBase" placeholder="https://.../v1"></label>
+      <label>Model
+        <div class="inline"><input id="pModel" list="pModelList" placeholder="model name"><button id="pLoadModels" type="button">Load models</button></div>
+        <datalist id="pModelList"></datalist>
+      </label>
+      <label class="pKeyRow">API key(s)
+        <textarea id="pKey" rows="2" spellcheck="false" placeholder="paste key - one per line to add several"></textarea>
+      </label>
+      <div id="pStatus"></div>
+      <div class="keyBtns">
+        <button id="pTest" type="button">Test</button>
+        <button id="pShow" type="button" class="pKeyRow">Show</button>
+        <button id="pClearKeys" type="button" class="pKeyRow">Remove keys</button>
+      </div>
+      <div class="btnRow"><button id="pCancel" type="button">Cancel</button><button id="pSave" type="button" class="primary">Save provider</button></div>
     </div>
-    <label>Connection
-      <select id="sMode">
-        <option value="relay">Relay (works in Myanmar, no VPN)</option>
-        <option value="direct">Direct to Google (VPN or proxy)</option>
-      </select>
-    </label>
-    <label class="relayOnly">Relay URL <input id="sRelay"></label>
-    <label class="directOnly">Proxy (optional) <input id="sProxy" placeholder="http://127.0.0.1:8118"></label>
-    <label>Model <input id="sModel" list="modelList"><datalist id="modelList"></datalist></label>
+
+    <label>Proxy (optional, for blocked services) <input id="sProxy" placeholder="e.g. http://127.0.0.1:8118 - leave empty for none"></label>
+    <hr class="sep">
     <label>Character
-      <select id="sChar"><option value="pip">Pip (office buddy)</option><option value="bears">Mocha &amp; Milk (bear couple)</option></select>
+      <select id="sChar">
+        <option value="pip">Pip (office buddy)</option>
+        <option value="bears">Mocha &amp; Milk (bear couple)</option>
+        <option value="cat">Mango (orange cat)</option>
+        <option value="dog">Kopi (puppy)</option>
+        <option value="capy">Capy (chill capybara)</option>
+        <option value="penguin">Pebble (penguin)</option>
+      </select>
     </label>
     <label>Reply language
       <select id="sLang"><option value="auto">Same as I write</option><option value="en">English</option><option value="my">Burmese</option></select>
@@ -153,6 +179,126 @@
     <g class="dots"><circle cx="196" cy="30" r="4"/><circle cx="206" cy="18" r="5"/><circle cx="214" cy="6" r="6"/></g>
     <g class="zzz"><text x="190" y="30">z</text><text x="202" y="18">z</text></g>
     <g class="waves"><path d="M206 72q6 10 0 20M214 66q10 16 0 32" fill="none"/></g>
+  </svg>
+
+  <!-- Mango: orange tabby cat -->
+  <svg class="char-cat" viewBox="0 0 160 170" width="132" height="140" aria-label="Mango the cat">
+    <ellipse class="shadow" cx="80" cy="162" rx="44" ry="6"/>
+    <g class="bob">
+      <path class="tail" d="M112 144q34-4 30-36q-2-14-12-10" fill="none"/>
+      <ellipse class="body" cx="80" cy="126" rx="38" ry="30"/>
+      <ellipse class="belly" cx="80" cy="132" rx="20" ry="19"/>
+      <ellipse class="foot" cx="62" cy="152" rx="12" ry="7"/><ellipse class="foot" cx="98" cy="152" rx="12" ry="7"/>
+      <path class="body" d="M44 52L50 18L74 40Z"/><path class="body" d="M116 52L110 18L86 40Z"/>
+      <path class="earIn" d="M50 44L53 27L66 40Z"/><path class="earIn" d="M110 44L107 27L94 40Z"/>
+      <ellipse class="body" cx="80" cy="70" rx="42" ry="34"/>
+      <path class="stripe" d="M72 39q8 5 16 0M68 47q12 6 24 0M40 66l9 2M40 76l9-1M120 66l-9 2M120 76l-9-1" fill="none"/>
+      <g class="eyes">
+        <g class="eye"><ellipse cx="64" cy="68" rx="6" ry="8" class="pupil"/><circle cx="66" cy="65" r="2" class="shine"/></g>
+        <g class="eye"><ellipse cx="96" cy="68" rx="6" ry="8" class="pupil"/><circle cx="98" cy="65" r="2" class="shine"/></g>
+        <path class="lid" d="M57 69q7 5 14 0M89 69q7 5 14 0" fill="none"/>
+      </g>
+      <path class="brow" d="M55 54l12 3M105 54l-12 3" fill="none"/>
+      <ellipse class="cheek" cx="52" cy="82" rx="6" ry="3.5"/><ellipse class="cheek" cx="108" cy="82" rx="6" ry="3.5"/>
+      <path class="nose" d="M76 79h8l-4 5z"/>
+      <path class="whisker" d="M30 82l20 2M32 90l19-3M130 82l-20 2M128 90l-19-3" fill="none"/>
+      <path class="mouth smile" d="M72 87q4 5 8 0q4 5 8 0" fill="none"/>
+      <ellipse class="mouth talk" cx="80" cy="90" rx="5" ry="4"/>
+      <path class="mouth flat" d="M73 89h14" fill="none"/>
+      <g class="armR"><ellipse class="body" cx="122" cy="108" rx="9" ry="14" transform="rotate(-25 122 108)"/></g>
+    </g>
+    <g class="dots"><circle cx="132" cy="30" r="4"/><circle cx="143" cy="19" r="5"/><circle cx="154" cy="7" r="6"/></g>
+    <g class="zzz"><text x="124" y="30">z</text><text x="136" y="18">z</text></g>
+    <g class="waves"><path d="M144 72q6 10 0 20M152 66q10 16 0 32" fill="none"/></g>
+  </svg>
+
+  <!-- Kopi: puppy with a collar -->
+  <svg class="char-dog" viewBox="0 0 160 170" width="132" height="140" aria-label="Kopi the dog">
+    <ellipse class="shadow" cx="80" cy="162" rx="44" ry="6"/>
+    <g class="bob">
+      <path class="tail" d="M110 132q22-6 24-26" fill="none"/>
+      <ellipse class="body" cx="80" cy="128" rx="35" ry="27"/>
+      <ellipse class="belly" cx="80" cy="134" rx="18" ry="17"/>
+      <ellipse class="foot" cx="62" cy="153" rx="12" ry="7"/><ellipse class="foot" cx="98" cy="153" rx="12" ry="7"/>
+      <ellipse class="ear" cx="44" cy="66" rx="13" ry="24" transform="rotate(18 44 66)"/>
+      <ellipse class="ear" cx="116" cy="66" rx="13" ry="24" transform="rotate(-18 116 66)"/>
+      <ellipse class="body" cx="80" cy="70" rx="38" ry="34"/>
+      <ellipse class="muzzle" cx="80" cy="86" rx="19" ry="14"/>
+      <path class="collar" d="M52 100q28 12 56 0v7q-28 12-56 0z"/><circle class="tag" cx="80" cy="112" r="5"/>
+      <g class="eyes">
+        <g class="eye"><ellipse cx="65" cy="68" rx="5.5" ry="6.5" class="pupil"/><circle cx="67" cy="66" r="2" class="shine"/></g>
+        <g class="eye"><ellipse cx="95" cy="68" rx="5.5" ry="6.5" class="pupil"/><circle cx="97" cy="66" r="2" class="shine"/></g>
+        <path class="lid" d="M59 69q6 5 12 0M89 69q6 5 12 0" fill="none"/>
+      </g>
+      <path class="brow" d="M57 55l11 3M103 55l-11 3" fill="none"/>
+      <ellipse class="cheek" cx="54" cy="84" rx="5" ry="3"/><ellipse class="cheek" cx="106" cy="84" rx="5" ry="3"/>
+      <ellipse class="nose" cx="80" cy="80" rx="7" ry="5"/>
+      <path class="mouth smile" d="M71 89q9 8 18 0" fill="none"/>
+      <path class="tongue" d="M80 93q0 9 5 9q5 0 4-9z"/>
+      <ellipse class="mouth talk" cx="80" cy="92" rx="6" ry="4.5"/>
+      <path class="mouth flat" d="M72 91h16" fill="none"/>
+      <g class="armR"><ellipse class="body" cx="118" cy="110" rx="9" ry="14" transform="rotate(-25 118 110)"/></g>
+    </g>
+    <g class="dots"><circle cx="132" cy="30" r="4"/><circle cx="143" cy="19" r="5"/><circle cx="154" cy="7" r="6"/></g>
+    <g class="zzz"><text x="124" y="30">z</text><text x="136" y="18">z</text></g>
+    <g class="waves"><path d="M144 72q6 10 0 20M152 66q10 16 0 32" fill="none"/></g>
+  </svg>
+
+  <!-- Capy: very calm capybara with a yuzu on its head -->
+  <svg class="char-capy" viewBox="0 0 160 170" width="132" height="140" aria-label="Capy the capybara">
+    <ellipse class="shadow" cx="80" cy="162" rx="50" ry="6"/>
+    <g class="bob">
+      <rect class="body" x="26" y="84" width="108" height="66" rx="33"/>
+      <ellipse class="foot" cx="54" cy="152" rx="11" ry="6"/><ellipse class="foot" cx="106" cy="152" rx="11" ry="6"/>
+      <ellipse class="ear" cx="46" cy="42" rx="8" ry="6"/><ellipse class="ear" cx="114" cy="42" rx="8" ry="6"/>
+      <rect class="body" x="34" y="38" width="92" height="66" rx="30"/>
+      <rect class="snout" x="54" y="68" width="52" height="32" rx="16"/>
+      <ellipse class="nose" cx="72" cy="76" rx="3" ry="2"/><ellipse class="nose" cx="88" cy="76" rx="3" ry="2"/>
+      <circle class="yuzu" cx="80" cy="30" r="11"/><path class="leaf" d="M80 19q8-8 14-2q-6 6-14 2z"/>
+      <g class="eyes">
+        <g class="eye"><ellipse cx="58" cy="58" rx="3.5" ry="4" class="pupil"/></g>
+        <g class="eye"><ellipse cx="102" cy="58" rx="3.5" ry="4" class="pupil"/></g>
+        <path class="lid" d="M53 58q5 4 10 0M97 58q5 4 10 0" fill="none"/>
+      </g>
+      <path class="calmlid" d="M52 55q6-3 12 0M96 55q6-3 12 0" fill="none"/>
+      <path class="brow" d="M50 47l10 3M110 47l-10 3" fill="none"/>
+      <ellipse class="cheek" cx="46" cy="72" rx="6" ry="3.5"/><ellipse class="cheek" cx="114" cy="72" rx="6" ry="3.5"/>
+      <path class="mouth smile" d="M74 88q6 5 12 0" fill="none"/>
+      <ellipse class="mouth talk" cx="80" cy="90" rx="5" ry="3.5"/>
+      <path class="mouth flat" d="M74 89h12" fill="none"/>
+      <g class="armR"><ellipse class="body" cx="128" cy="118" rx="9" ry="14" transform="rotate(-30 128 118)"/></g>
+    </g>
+    <g class="dots"><circle cx="134" cy="26" r="4"/><circle cx="145" cy="15" r="5"/><circle cx="155" cy="4" r="6"/></g>
+    <g class="zzz"><text x="126" y="30">z</text><text x="138" y="18">z</text></g>
+    <g class="waves"><path d="M146 72q6 10 0 20M154 66q10 16 0 32" fill="none"/></g>
+  </svg>
+
+  <!-- Pebble: penguin in a scarf -->
+  <svg class="char-penguin" viewBox="0 0 160 170" width="132" height="140" aria-label="Pebble the penguin">
+    <ellipse class="shadow" cx="80" cy="162" rx="42" ry="6"/>
+    <g class="bob">
+      <ellipse class="feet" cx="66" cy="153" rx="12" ry="6"/><ellipse class="feet" cx="94" cy="153" rx="12" ry="6"/>
+      <ellipse class="flip" cx="38" cy="112" rx="9" ry="22" transform="rotate(18 38 112)"/>
+      <ellipse class="body" cx="80" cy="96" rx="44" ry="56"/>
+      <ellipse class="belly" cx="80" cy="114" rx="29" ry="38"/>
+      <path class="face" d="M80 52c-14-10-34-4-34 14c0 14 14 24 34 24s34-10 34-24c0-18-20-24-34-14z"/>
+      <path class="scarf" d="M48 94q32 14 64 0v9q-32 14-64 0z"/><path class="scarf" d="M98 104l6 22l9-4l-5-20z"/>
+      <g class="eyes">
+        <g class="eye"><ellipse cx="68" cy="70" rx="4.5" ry="5.5" class="pupil"/><circle cx="70" cy="68" r="1.6" class="shine"/></g>
+        <g class="eye"><ellipse cx="92" cy="70" rx="4.5" ry="5.5" class="pupil"/><circle cx="94" cy="68" r="1.6" class="shine"/></g>
+        <path class="lid" d="M63 71q5 4 10 0M87 71q5 4 10 0" fill="none"/>
+      </g>
+      <path class="brow" d="M62 59l10 3M98 59l-10 3" fill="none"/>
+      <ellipse class="cheek" cx="58" cy="80" rx="5" ry="3"/><ellipse class="cheek" cx="102" cy="80" rx="5" ry="3"/>
+      <path class="beak" d="M73 78h14l-7 8z"/>
+      <path class="mouth smile" d="M75 89q5 3 10 0" fill="none"/>
+      <ellipse class="mouth talk" cx="80" cy="89" rx="4.5" ry="3.5"/>
+      <path class="mouth flat" d="M75 89h10" fill="none"/>
+      <g class="armR"><ellipse class="flip" cx="124" cy="100" rx="9" ry="22" transform="rotate(-35 124 100)"/></g>
+    </g>
+    <g class="dots"><circle cx="132" cy="30" r="4"/><circle cx="143" cy="19" r="5"/><circle cx="154" cy="7" r="6"/></g>
+    <g class="zzz"><text x="124" y="30">z</text><text x="136" y="18">z</text></g>
+    <g class="waves"><path d="M144 72q6 10 0 20M152 66q10 16 0 32" fill="none"/></g>
   </svg>
 
   <svg class="char-pip" viewBox="0 0 160 170" width="132" height="140" aria-label="Pip">

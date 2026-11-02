@@ -109,9 +109,32 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #settings h3 { margin: 0 0 8px; }
 #settings label { display: block; margin: 7px 0; font-size: 12px; color: var(--muted); }
 #settings label.row { display: flex; gap: 6px; align-items: center; color: var(--text); }
-#settings input:not([type=checkbox]), #settings select { display: block; width: 100%; margin-top: 3px; background: var(--bg2);
+#settings input:not([type=checkbox]):not([type=radio]), #settings select { display: block; width: 100%; margin-top: 3px; background: var(--bg2);
   border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 5px 8px; font: inherit; user-select: text; }
 #settings a { color: var(--accent); }
+.secHead { display: flex; justify-content: space-between; align-items: center; margin: 8px 0 4px; font-size: 12.5px; }
+.secHead button { background: var(--accent); border: 0; border-radius: 7px; padding: 2px 10px; font-size: 11.5px; }
+.secHead a { color: var(--accent); font-size: 11.5px; }
+.pRow { display: flex; align-items: center; gap: 6px; padding: 5px 6px; border: 1px solid var(--line); border-radius: 9px; margin-bottom: 4px; font-size: 12px; background: var(--bg2); }
+.pRow.active { border-color: var(--accent); background: rgba(20,168,180,.12); }
+.pRow .pInfo { flex: 1; min-width: 0; }
+.pRow .pInfo small { display: block; color: var(--muted); font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pRow button { background: none; border: 1px solid var(--line); border-radius: 6px; font-size: 10.5px; padding: 1px 6px; color: var(--muted); }
+.pRow input[type=radio] { accent-color: var(--accent); }
+#pAddMenu { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 6px; }
+#pAddMenu button { text-align: left; background: var(--bg2); border: 1px solid var(--line); border-radius: 8px; padding: 4px 7px; font-size: 11.5px; }
+#pAddMenu button small { display: block; color: var(--muted); font-size: 10px; }
+#pEdit { border: 1px solid var(--accent2); border-radius: 10px; padding: 4px 10px 8px; margin: 6px 0; background: rgba(139,124,255,.08); }
+.pNote { font-size: 11px; color: var(--muted); }
+.inline { display: flex; gap: 5px; margin-top: 3px; }
+.inline input { margin-top: 0 !important; }
+.inline button { flex: none; background: var(--bg2); border: 1px solid var(--line); border-radius: 8px; font-size: 11px; padding: 0 8px; }
+#pStatus { font-size: 11.5px; color: var(--muted); white-space: pre-wrap; margin: 2px 0 4px; }
+#pStatus .ok { color: var(--ok); } #pStatus .bad { color: #ff8f8f; }
+hr.sep { border: 0; border-top: 1px solid var(--line); margin: 10px 0; }
+#pKey { display: block; width: 100%; margin-top: 3px; background: var(--bg2); border: 1px solid var(--line); color: var(--text);
+  border-radius: 8px; padding: 5px 8px; font: 12px Consolas, monospace; resize: vertical; user-select: text; -webkit-text-security: disc; }
+#pKey.reveal { -webkit-text-security: none; }
 #sKey { display: block; width: 100%; margin-top: 3px; background: var(--bg2); border: 1px solid var(--line); color: var(--text);
   border-radius: 8px; padding: 5px 8px; font: 12px Consolas, monospace; resize: vertical; user-select: text; -webkit-text-security: disc; }
 #sKey.reveal { -webkit-text-security: none; }
@@ -185,11 +208,67 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #pip.worried .mouth.smile { display: none; } #pip.worried .mouth.flat { display: block; }
 #pip.drag .bob { transform: rotate(-6deg); animation: none; }
 
-/* ---------------- character switch */
-#pip .char-bears { display: none; }
+/* ---------------- character switch: only the chosen character's SVG is shown */
+#pip svg[class^="char-"] { display: none; }
+#pip[data-char="pip"] .char-pip, #pip[data-char="bears"] .char-bears, #pip[data-char="cat"] .char-cat,
+#pip[data-char="dog"] .char-dog, #pip[data-char="capy"] .char-capy, #pip[data-char="penguin"] .char-penguin { display: block; }
 #pip[data-char="bears"] { width: 186px; }
-#pip[data-char="bears"] .char-pip { display: none; }
-#pip[data-char="bears"] .char-bears { display: block; }
+/* the animal characters share eye/mouth animation pivots around their own shapes */
+#pip svg:not(.char-pip) .eye { transform-origin: center; transform-box: fill-box; }
+#pip svg:not(.char-pip) .mouth.talk { transform-box: fill-box; transform-origin: center; }
+#pip svg:not(.char-pip) .armR { transform-box: fill-box; transform-origin: 20% 90%; }
+.tail { stroke-width: 9; stroke-linecap: round; }
+.char-cat .tail, .char-dog .tail { animation: wag 1.6s ease-in-out infinite; transform-box: fill-box; transform-origin: 0% 100%; }
+#pip.happy .char-dog .tail, #pip.talk .char-dog .tail { animation-duration: .35s; }
+@keyframes wag { 50% { transform: rotate(-12deg); } }
+
+/* Mango the cat */
+.char-cat .body { fill: #f4a259; stroke: #6b3d1e; }
+.char-cat .belly { fill: #fde6c8; }
+.char-cat .foot { fill: #fde6c8; stroke: #6b3d1e; stroke-width: 2; }
+.char-cat .tail { stroke: #f4a259; }
+.char-cat .earIn { fill: #ffb3c1; }
+.char-cat .stripe { stroke: #c76b25; stroke-width: 3; stroke-linecap: round; }
+.char-cat .pupil { fill: #2b1d14; } .char-cat .nose { fill: #ff7f9b; }
+.char-cat .whisker { stroke: #6b3d1e; stroke-width: 1.5; stroke-linecap: round; opacity: .7; }
+.char-cat .mouth, .char-cat .lid, .char-cat .brow { stroke: #4a2a14; stroke-width: 2.5; }
+.char-cat .mouth.talk { fill: #a3354e; }
+
+/* Kopi the dog */
+.char-dog .body { fill: #e8b878; stroke: #6b4423; }
+.char-dog .belly, .char-dog .muzzle { fill: #fff8ec; }
+.char-dog .muzzle { stroke: #d9b88a; stroke-width: 1.5; }
+.char-dog .ear { fill: #8b5a33; stroke: #5a3a20; stroke-width: 2.5; }
+.char-dog .foot { fill: #fff8ec; stroke: #6b4423; stroke-width: 2; }
+.char-dog .tail { stroke: #e8b878; }
+.char-dog .collar { fill: #e64a5d; } .char-dog .tag { fill: #ffd34d; stroke: #b8901a; stroke-width: 1.5; }
+.char-dog .nose, .char-dog .pupil { fill: #241a14; }
+.char-dog .tongue { fill: #ff7f9b; }
+#pip.talk .char-dog .tongue, #pip.think .char-dog .tongue, #pip.sleep .char-dog .tongue, #pip.worried .char-dog .tongue { display: none; }
+.char-dog .mouth, .char-dog .lid, .char-dog .brow { stroke: #3a2616; stroke-width: 2.5; }
+.char-dog .mouth.talk { fill: #a3354e; }
+
+/* Capy the capybara */
+.char-capy .body { fill: #b07a4f; stroke: #5d3b22; }
+.char-capy .snout { fill: #8f5f3b; stroke: #5d3b22; stroke-width: 2; }
+.char-capy .ear, .char-capy .foot { fill: #7d5233; }
+.char-capy .nose, .char-capy .pupil { fill: #2a1a10; }
+.char-capy .yuzu { fill: #ffb43b; stroke: #d4861a; stroke-width: 1.5; } .char-capy .leaf { fill: #5bbf5a; }
+.char-capy .calmlid { stroke: #5d3b22; stroke-width: 2.5; stroke-linecap: round; }
+.char-capy .mouth, .char-capy .lid, .char-capy .brow { stroke: #3d2614; stroke-width: 2.5; }
+.char-capy .mouth.talk { fill: #6e2a3a; }
+.char-capy .bob { animation-duration: 5s; }                 /* extra chill */
+
+/* Pebble the penguin */
+.char-penguin .body, .char-penguin .flip { fill: #2e3f5c; stroke: #1b2638; }
+.char-penguin .belly, .char-penguin .face { fill: #fdfdfb; }
+.char-penguin .feet, .char-penguin .beak { fill: #ff9f3b; }
+.char-penguin .beak { stroke: #c96b12; stroke-width: 1.5; }
+.char-penguin .scarf { fill: #e64a5d; }
+.char-penguin .pupil { fill: #1b1b22; }
+.char-penguin .mouth, .char-penguin .lid, .char-penguin .brow { stroke: #1b2638; stroke-width: 2.2; }
+.char-penguin .mouth.smile { display: none; }               /* the beak is the smile */
+.char-penguin .mouth.talk { fill: #c96b12; }
 
 /* Mocha & Milk */
 .char-bears .body.brown, .char-bears .arm.brown { fill: #b98059; stroke: #5a3a2a; }
@@ -206,8 +285,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .char-bears .bow { fill: #ff6f91; stroke: #c4405f; stroke-width: 1; }
 .char-bears .bowKnot { fill: #c4405f; }
 .char-bears .mouth { stroke: #3a2420; stroke-width: 2.5; }
-.char-bears .mouth.talk { fill: #a3354e; transform-box: fill-box; transform-origin: center; }
-.char-bears .eye { transform-origin: center; }
+.char-bears .mouth.talk { fill: #a3354e; }
 .char-bears .lid, .char-bears .brow { stroke: #3a2420; }
 .char-bears .hearts { display: none; fill: #ff6f91; }
 .char-bears .bob2 { animation-delay: -1.5s; }

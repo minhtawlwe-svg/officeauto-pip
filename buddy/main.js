@@ -12,10 +12,9 @@ const SCRIPT = path.join(ROOT, 'OfficeAuto.ps1');
 const SETTINGS_FILE = () => path.join(app.getPath('userData'), 'settings.json');
 
 const DEFAULTS = {
-  mode: 'relay',                                       // 'relay' (no VPN needed) or 'direct'
-  relayUrl: 'https://interview-relay.vercel.app/api/ask',
-  proxy: '',                                           // e.g. http://127.0.0.1:8118 for direct mode
-  model: 'gemini-2.5-flash',
+  activeProvider: '',                                  // id of the provider used first
+  fallback: true,                                      // if it fails, try the other providers
+  proxy: '',                                           // e.g. http://127.0.0.1:8118 for blocked services
   replyLang: 'auto',                                   // auto | en | my
   speak: true,
   voice: '',
@@ -23,47 +22,76 @@ const DEFAULTS = {
   character: 'pip',                                   // pip | bears
   autoStart: true,                                     // launch Pip when Windows starts
 };
-const KEY_FILE = path.join(__dirname, 'api-key.txt'); // optional plain-text keys, one per line
+let win, tray, settings;
+let providers = [];            // [{ id, preset, type, name, mode, relayUrl, baseUrl, model, keys[] }] - keys decrypted in memory only
+const AI = require('./providers')({ net });
 
-let win, tray, settings, apiKey = '';
+// ---------------------------------------------------------------- settings (API keys encrypted with Windows DPAPI)
+const enc = (keys) => (keys.length ? safeStorage.encryptString(keys.join(',')).toString('base64') : '');
+const dec = (b64) => { try { return b64 ? AI.parseKeys(safeStorage.decryptString(Buffer.from(b64, 'base64'))) : []; } catch { return []; } };
 
-// ---------------------------------------------------------------- settings (key encrypted with DPAPI)
 function loadSettings() {
   let raw = {};
   try { raw = JSON.parse(fs.readFileSync(SETTINGS_FILE(), 'utf8')); } catch { }
   settings = { ...DEFAULTS, ...raw };
-  delete settings.keyEnc;
-  apiKey = '';
-  if (raw.keyEnc) {
-    try { apiKey = safeStorage.decryptString(Buffer.from(raw.keyEnc, 'base64')); } catch { }
+  if (Array.isArray(raw.providers)) {
+    providers = raw.providers.map(({ keyEnc, ...p }) => ({ ...p, keys: dec(keyEnc) }));
+  } else {
+    // first run of the multi-provider version: turn the old single Gemini setup into a provider
+    providers = [{ ...AI.PRESETS.gemini, id: 'gemini1', preset: 'gemini',
+      mode: raw.mode || 'relay', relayUrl: raw.relayUrl || AI.PRESETS.gemini.relayUrl, model: raw.model || AI.PRESETS.gemini.model, keys: dec(raw.keyEnc) }];
+    settings.activeProvider = 'gemini1';
   }
+  for (const k of ['keyEnc', 'mode', 'relayUrl', 'model', 'providers']) delete settings[k];
+  if (!providers.some((p) => p.id === settings.activeProvider)) settings.activeProvider = providers[0]?.id || '';
 }
 
-function saveSettings(patch) {
-  if (typeof patch.apiKey === 'string') { apiKey = parseKeys(patch.apiKey).join(','); delete patch.apiKey; }
+function saveSettings(patch = {}) {
   settings = { ...settings, ...patch };
-  const out = { ...settings };
-  if (apiKey) out.keyEnc = safeStorage.encryptString(apiKey).toString('base64');
+  const out = { ...settings, providers: providers.map(({ keys, ...p }) => ({ ...p, keyEnc: enc(keys || []) })) };
   fs.mkdirSync(path.dirname(SETTINGS_FILE()), { recursive: true });
   fs.writeFileSync(SETTINGS_FILE(), JSON.stringify(out, null, 2));
   applyProxy();
   applyAutoStart();
 }
 
-// Keys can come from Settings (encrypted), the GEMINI_API_KEY env var, or api-key.txt.
-// Several keys = automatic rotation when one runs out of free quota.
-function parseKeys(text) {
-  return String(text || '').split(/\r?\n/).map(l => l.replace(/#.*$/, ''))
-    .join(',').split(/[,\s]+/).map(k => k.trim()).filter(Boolean)
-    .filter((k, i, a) => a.indexOf(k) === i);
+const activeProvider = () => providers.find((p) => p.id === settings.activeProvider) || providers[0];
+
+// what the renderer may see about providers (never the keys themselves)
+function publicProviders() {
+  return providers.map((p) => {
+    const { keys, from } = AI.keysOf(p), preset = AI.PRESETS[p.preset] || {};
+    return { id: p.id, preset: p.preset, type: p.type, name: p.name, mode: p.mode, relayUrl: p.relayUrl, baseUrl: p.baseUrl, model: p.model,
+      keyCount: keys.length, keyMasks: keys.map(AI.mask), keyFrom: from, noKey: !!preset.noKey, keyUrl: preset.keyUrl || '', note: preset.note || '',
+      active: p.id === settings.activeProvider };
+  });
 }
-function keySource() {
-  if (parseKeys(apiKey).length) return { keys: parseKeys(apiKey), from: 'Settings' };
-  if (parseKeys(process.env.GEMINI_API_KEY).length) return { keys: parseKeys(process.env.GEMINI_API_KEY), from: 'GEMINI_API_KEY env' };
-  try { const k = parseKeys(fs.readFileSync(KEY_FILE, 'utf8')); if (k.length) return { keys: k, from: 'api-key.txt' }; } catch { }
-  return { keys: [], from: '' };
+
+function saveProvider(draft) {
+  const preset = AI.PRESETS[draft.preset] || AI.PRESETS.custom;
+  let p = providers.find((x) => x.id === draft.id);
+  if (!p) {
+    p = { id: `${draft.preset}${Date.now().toString(36)}`, preset: draft.preset, type: preset.type, keys: [] };
+    providers.push(p);
+    if (providers.length === 1 || !AI.usable(activeProvider())) settings.activeProvider = p.id;
+  }
+  p.name = (draft.name || preset.name).trim();
+  p.model = (draft.model || '').trim();
+  if (p.type === 'gemini') { p.mode = draft.mode === 'direct' ? 'direct' : 'relay'; p.relayUrl = (draft.relayUrl || preset.relayUrl).trim(); }
+  else if (p.type === 'openai') p.baseUrl = (draft.baseUrl || preset.baseUrl || '').trim();
+  if (typeof draft.apiKey === 'string' && draft.apiKey.trim()) p.keys = AI.parseKeys(draft.apiKey);
+  if (draft.clearKeys) p.keys = [];
+  saveSettings();
+  return p;
 }
-const mask = k => k.length > 10 ? `${k.slice(0, 4)}...${k.slice(-4)}` : '****';
+
+// a provider object for Test / Load models, built from the editor before it is saved
+function draftProvider(draft) {
+  const saved = providers.find((x) => x.id === draft.id);
+  const preset = AI.PRESETS[draft.preset] || AI.PRESETS.custom;
+  return { ...(saved || {}), preset: draft.preset, type: preset.type, name: draft.name || preset.name, model: draft.model,
+    mode: draft.mode, relayUrl: draft.relayUrl || preset.relayUrl, baseUrl: draft.baseUrl || preset.baseUrl, keys: saved ? saved.keys : [] };
+}
 
 function applyAutoStart() {
   // unpackaged Electron: launch electron.exe with this app folder as the argument
@@ -74,13 +102,14 @@ function applyAutoStart() {
 }
 
 function publicSettings() {
-  const { keys, from } = keySource();
-  return { ...settings, hasKey: keys.length > 0, keyCount: keys.length, keyMasks: keys.map(mask), keyFrom: from };
+  const a = activeProvider();
+  return { ...settings, hasKey: !!a && AI.usable(a), activeName: a ? a.name : '', activeModel: a ? a.model : '',
+    activeMode: a && a.type === 'gemini' ? a.mode : '', hasGemini: providers.some((p) => p.type === 'gemini' && AI.usable(p)) };
 }
 
 function applyProxy() {
-  const rules = settings.mode === 'direct' && settings.proxy ? settings.proxy : '';
-  session.defaultSession.setProxy(rules ? { proxyRules: rules } : { mode: 'direct' });
+  const rules = (settings.proxy || '').trim();
+  session.defaultSession.setProxy(rules ? { proxyRules: rules, proxyBypassRules: '<local>' } : { mode: 'direct' });
 }
 
 // ---------------------------------------------------------------- window
@@ -143,115 +172,11 @@ function resetPosition() {
   win.setPosition(workArea.x + workArea.width - W - 20, workArea.y + workArea.height - H);
 }
 
-// ---------------------------------------------------------------- Gemini
-// Streams the answer text to the renderer via 'ai:chunk'; resolves with the full text.
-async function ask(req, onlyKeys) {
-  const keys = onlyKeys || keySource().keys;
-  if (!keys.length) throw new Error('NO_KEY: open Settings and paste your free Gemini API key (aistudio.google.com/apikey).');
-  const send = t => win && win.webContents.send('ai:chunk', { id: req.id, text: t });
-  const models = [settings.model, 'gemini-2.5-flash', 'gemini-2.5-flash-lite'].filter((m, i, a) => m && a.indexOf(m) === i);
-
-  if (settings.mode === 'relay') {
-    // relay is single-turn: fold recent history into the system prompt
-    // the relay caps the system prompt at 20k chars, so keep the newest turns that fit
-    let budget = 19000 - req.system.length, hist = '';
-    for (const h of [...(req.history || [])].reverse()) {
-      const line = `${h.role === 'user' ? 'User' : 'Assistant'}: ${h.text}\n`;
-      if (line.length > budget) break;
-      hist = line + hist; budget -= line.length;
-    }
-    hist = hist.trim();
-    const body = {
-      system: req.system + (hist ? `\n\n--- Conversation so far ---\n${hist}` : ''),
-      type: req.audio ? 'audio' : 'text',
-      payload: req.audio || req.text || '(see attached file)',
-      images: req.files || [],
-      models, max_output_tokens: 4096, temperature: 0.6,
-    };
-    const res = await net.fetch(settings.relayUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Gemini-Key': keys.join(',') },   // relay rotates on 429
-      body: JSON.stringify(body),
-    });
-    if (res.status === 429) throw new Error('Gemini free quota is used up for this key (or the key was revoked). Wait a while, or paste a fresh key in Settings.');
-    if (res.status === 401) throw new Error('Gemini rejected the API key. Paste a valid key from aistudio.google.com/apikey in Settings.');
-    if (!res.ok) throw new Error(`Relay ${res.status}: ${(await res.text()).slice(0, 300)}`);
-    return readStream(res.body, chunk => send(chunk));
-  }
-
-  // direct mode: real multi-turn contents, SSE stream
-  const contents = (req.history || []).map(h => ({ role: h.role === 'user' ? 'user' : 'model', parts: [{ text: h.text }] }));
-  const parts = [];
-  if (req.audio) parts.push({ inlineData: { mimeType: 'audio/wav', data: req.audio } });
-  for (const f of req.files || []) parts.push({ inlineData: f });
-  if (req.text) parts.push({ text: req.text });
-  contents.push({ role: 'user', parts });
-  let lastErr = '';
-  for (const model of models) for (const key of keys) {
-    const res = await net.fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: req.system }] }, contents,
-        generationConfig: { temperature: 0.6, maxOutputTokens: 4096 },
-      }),
-    });
-    if ([429, 404, 400, 403].includes(res.status)) { lastErr = `${model} ${mask(key)}: ${res.status}`; continue; }
-    if (!res.ok) throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 300)}`);
-    let buf = '', full = '';
-    await readStream(res.body, chunk => {
-      buf += chunk;
-      let nl;
-      while ((nl = buf.indexOf('\n')) >= 0) {
-        const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1);
-        if (!line.startsWith('data:')) continue;
-        try {
-          const j = JSON.parse(line.slice(5));
-          const t = (j.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
-          if (t) { full += t; send(t); }
-        } catch { }
-      }
-    });
-    return full;
-  }
-  throw new Error('QUOTA_EXHAUSTED (' + lastErr + ') - free quota used up, try again later or add another key.');
-}
-
-async function readStream(body, onChunk) {
-  const reader = body.getReader(), dec = new TextDecoder();
-  let full = '';
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    const t = dec.decode(value, { stream: true });
-    full += t; onChunk(t);
-  }
-  return full;
-}
-
-async function listModels() {
-  const key = keySource().keys[0];
-  if (!key || settings.mode !== 'direct') return [];
-  const res = await net.fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers: { 'x-goog-api-key': key } });
-  if (!res.ok) return [];
-  const j = await res.json();
-  return (j.models || [])
-    .filter(m => (m.supportedGenerationMethods || []).includes('generateContent') && /gemini/.test(m.name))
-    .map(m => m.name.replace('models/', ''));
-}
-
-// Tests every key separately with a tiny prompt; keys typed in the box can be tested before saving.
-async function testKeys(text) {
-  const keys = text && parseKeys(text).length ? parseKeys(text) : keySource().keys;
-  const out = [];
-  for (const k of keys) {
-    const t0 = Date.now();
-    try {
-      const r = await ask({ id: -1, system: 'Reply with exactly: OK', text: 'ping' }, [k]);
-      out.push({ key: mask(k), ok: true, msg: `works (${((Date.now() - t0) / 1000).toFixed(1)}s): ${r.trim().slice(0, 20)}` });
-    } catch (e) { out.push({ key: mask(k), ok: false, msg: String(e.message).slice(0, 120) }); }
-  }
-  return out;
+// ---------------------------------------------------------------- AI (see providers.js)
+// Streams the answer text to the renderer via 'ai:chunk'.
+function ask(req) {
+  const send = (t) => win && win.webContents.send('ai:chunk', { id: req.id, text: t });
+  return AI.ask(providers, settings.activeProvider, settings.fallback, req, send);
 }
 
 // ---------------------------------------------------------------- files -> Gemini parts
@@ -260,7 +185,9 @@ const MIME = { '.pdf': 'application/pdf', '.png': 'image/png', '.jpg': 'image/jp
 
 async function readFileForAI(p) {
   const ext = path.extname(p).toLowerCase(), name = path.basename(p);
-  const limit = settings.mode === 'relay' ? 2.8 * 1024 * 1024 : 15 * 1024 * 1024;
+  const a = activeProvider();
+  const viaRelay = a && a.type === 'gemini' && a.mode !== 'direct';
+  const limit = viaRelay ? 2.8 * 1024 * 1024 : 15 * 1024 * 1024;   // the relay has a small request limit
   if (ext === '.docx') {
     const mammoth = require('mammoth');
     const { value } = await mammoth.extractRawText({ path: p });
@@ -274,7 +201,7 @@ async function readFileForAI(p) {
   if (TEXT_EXT.includes(ext)) return { name, text: fs.readFileSync(p, 'utf8').slice(0, 150000) };
   if (MIME[ext]) {
     const size = fs.statSync(p).size;
-    if (size > limit) throw new Error(`${name} is ${(size / 1048576).toFixed(1)} MB - too big (max ${(limit / 1048576).toFixed(1)} MB in ${settings.mode} mode).`);
+    if (size > limit) throw new Error(`${name} is ${(size / 1048576).toFixed(1)} MB - too big (max ${(limit / 1048576).toFixed(1)} MB${viaRelay ? ' through the Gemini relay' : ''}).`);
     return { name, inline: { mimeType: MIME[ext], data: fs.readFileSync(p).toString('base64') } };
   }
   throw new Error(`Can't read ${ext} files yet. Try Excel, CSV, PDF, DOCX, TXT or an image.`);
@@ -493,11 +420,19 @@ function registerIpc() {
   ipcMain.handle('win:pos', () => win.getPosition());
   ipcMain.handle('settings:get', () => publicSettings());
   ipcMain.handle('settings:set', (_e, patch) => { saveSettings(patch); refreshTray(); return publicSettings(); });
-  ipcMain.handle('ai:test', (_e, text) => testKeys(text));
   ipcMain.handle('ai:ask', async (_e, req) => {
-    try { return { ok: true, text: await ask(req) }; } catch (err) { return { ok: false, error: String(err.message || err) }; }
+    try { const r = await ask(req); return { ok: true, ...r }; } catch (err) { return { ok: false, error: String(err.message || err) }; }
   });
-  ipcMain.handle('ai:models', () => listModels().catch(() => []));
+  ipcMain.handle('providers:list', () => ({ list: publicProviders(), presets: AI.PRESETS }));
+  ipcMain.handle('providers:save', (_e, draft) => { const p = saveProvider(draft); return { id: p.id, list: publicProviders(), settings: publicSettings() }; });
+  ipcMain.handle('providers:delete', (_e, id) => {
+    providers = providers.filter((p) => p.id !== id);
+    if (settings.activeProvider === id) settings.activeProvider = providers[0]?.id || '';
+    saveSettings(); return { list: publicProviders(), settings: publicSettings() };
+  });
+  ipcMain.handle('providers:activate', (_e, id) => { saveSettings({ activeProvider: id }); return { list: publicProviders(), settings: publicSettings() }; });
+  ipcMain.handle('providers:test', (_e, { draft, keysText }) => AI.test(draftProvider(draft), keysText));
+  ipcMain.handle('providers:models', (_e, { draft, keysText }) => AI.listModels(draftProvider(draft), keysText));
   ipcMain.handle('file:read', async (_e, p) => {
     try { return { ok: true, ...(await readFileForAI(p)) }; } catch (err) { return { ok: false, error: String(err.message || err) }; }
   });
@@ -573,6 +508,7 @@ app.whenReady().then(() => {
   globalShortcut.register('Control+Alt+Space', toggle);
   globalShortcut.register('Control+Alt+V', () => { win.show(); win.webContents.send('ui:ptt'); });
   globalShortcut.register('Control+Alt+C', () => { win.show(); win.webContents.send('ui:clipboard'); });
+  globalShortcut.register('Control+Alt+S', () => { win.show(); win.webContents.send('ui:open', 'settings'); });
   loadReminders();
   setInterval(checkReminders, 15000);
   setTimeout(checkReminders, 5000);

@@ -53,23 +53,34 @@ The PC tasks (Tidy Downloads, Backup, Folder to PDF, Find duplicates, Clean temp
 | **Ctrl+Alt+Space** | Show / hide Pip |
 | Say "open YouTube" / "search YouTube for lofi music" / "open Excel" | Opens the website or program right away (Excel, Word, PowerPoint, Outlook, Notepad, Calculator, Explorer, Edge, Chrome, Teams, Paint, Snip) |
 | Say "organize my downloads" | Pip shows a **▶ Run** button. Nothing runs until you click it |
-| ⚙ Settings → Character | Switch between **Pip** (office buddy) and **Mocha & Milk** (an original cute bear couple) |
+| **Right-click the character**, **Ctrl+Alt+S**, or ⚙ in the chat | Opens Settings (you can come back and change anything at any time) |
+| ⚙ Settings → Character | **Pip** (office buddy) · **Mocha & Milk** (bear couple) · **Mango** (orange cat) · **Kopi** (puppy) · **Capy** (chill capybara with a yuzu) · **Pebble** (penguin in a scarf). All are original designs with their own personality |
 | Tray icon (right-click) | Settings / API keys, Start with Windows, Reset position, Quit |
 
 Pip also changes expression, falls asleep when you're away, reminds you at lunch, and offers to write your daily report near home time.
 
-### API keys: add them yourself
-Pip uses **your own** Gemini key. Nothing is built in. There are three ways to add keys:
+### AI providers: use any AI, with your own keys
+**Settings → AI providers → + Add** lets you add, edit, test, delete and switch between:
 
-1. **Settings** (recommended): paste a key; you can paste several, one per line. Keys are stored **encrypted** (Windows DPAPI) in `%APPDATA%\officeauto-buddy\settings.json`.
-2. **File**: copy `buddy\api-key.example.txt` to `buddy\api-key.txt` and put your keys inside, one per line. This file is plain text, so keep it private.
-3. **Environment variable**: `GEMINI_API_KEY`.
+| Provider | Key | Notes |
+|---|---|---|
+| **Google Gemini** | free ([get key](https://aistudio.google.com/apikey)) | **Relay** mode works in Myanmar with no VPN; **Direct** mode connects to Google directly. Needed for 🎤 voice |
+| **Claude (Anthropic)** | paid | Official Anthropic SDK; default model `claude-opus-5-5`. Great for long documents and writing |
+| **OpenAI** | paid | Click **Load models** after adding the key |
+| **OpenRouter** | some models free | One key for hundreds of models |
+| **Groq** | free tier | Very fast |
+| **DeepSeek** | low cost | |
+| **Ollama** | none | Runs **offline on your PC** (install from ollama.com) |
+| **Custom** | depends | Any OpenAI-compatible `/chat/completions` API |
 
-With several keys (for example from several Google accounts), Pip switches to the next key automatically when one runs out of free quota. **Test keys** checks each one and shows ✔ or ✖.
+- The radio button picks which provider answers first. With **"If one provider fails, try the next one"** turned on, Pip moves to your other providers automatically (for example when the Gemini free quota runs out), and the chat shows "↪ Answered by …".
+- Each provider can hold **several keys** (one per line), and Pip rotates through them. **Test** checks each key before you save; **Load models** lists the models your key can use.
+- Keys are stored **encrypted** with Windows DPAPI in `%APPDATA%\officeauto-buddy\settings.json`. Gemini keys can also come from `buddy\api-key.txt` or the `GEMINI_API_KEY` environment variable.
+- **Proxy** (optional): if a service is blocked where you are, enter a proxy such as `http://127.0.0.1:8118`.
+- 🎤 Voice always uses a Gemini provider, because the other providers can't take audio.
 
-### Connection
-- **Relay** (default): requests go through a small US relay (`interview-relay.vercel.app`) that only forwards your request with your key, so it works where Gemini is blocked (for example Myanmar) without a VPN. You can host your own relay and change the URL in Settings.
-- **Direct**: talks to Google directly. Use it if Gemini works in your country or you have a VPN. You can set an optional proxy such as `http://127.0.0.1:8118`.
+### Burmese documents
+Slides, Word documents and Excel tables that contain Burmese automatically use the built-in **Myanmar Text** font, with taller line spacing so stacked characters aren't clipped. Ask in Burmese and the slides are written in Burmese.
 
 ---
 

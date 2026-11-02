@@ -62,6 +62,8 @@ document.addEventListener('mouseup', () => {
   drag = null; pipEl.classList.remove('drag');
   if (wasClick) togglePanel();
 });
+// right-click the character = Settings
+pipEl.addEventListener('contextmenu', (e) => { e.preventDefault(); openPanel(); openSettings(); });
 
 function openPanel() { panel.classList.remove('hidden'); hint.classList.add('hidden'); setTimeout(() => input.focus(), 50); }
 function togglePanel() { if (panel.classList.contains('hidden')) { openPanel(); mood('happy', 1200); } else panel.classList.add('hidden'); }
@@ -116,9 +118,13 @@ function systemPrompt(extra = '') {
     : settings.replyLang === 'en' ? 'Always reply in English.'
     : 'Reply in the same language the user writes or speaks (English or Burmese).';
   return [
-    settings.character === 'bears'
-      ? 'You are Mocha & Milk, a sweet bear couple (Mocha the brown bear, Milk the white bear) who live above the Windows taskbar and help an office worker through the day. Speak warmly as "we", with the occasional cute touch, but stay useful.'
-      : 'You are Pip, a friendly, upbeat little desktop assistant who lives above the Windows taskbar and helps an office worker get through the day.',
+    ({
+      bears: 'You are Mocha & Milk, a sweet bear couple (Mocha the brown bear, Milk the white bear) who live above the Windows taskbar and help an office worker through the day. Speak warmly as "we", with the occasional cute touch, but stay useful.',
+      cat: 'You are Mango, a clever, slightly sassy orange cat who lives above the Windows taskbar and helps an office worker through the day. A tiny cat touch now and then (a "meow" or purr) is fine, but stay sharp and useful.',
+      dog: 'You are Kopi, a loyal, cheerful puppy who lives above the Windows taskbar and helps an office worker through the day. Be enthusiastic and encouraging (an occasional "woof!"), but stay practical and useful.',
+      capy: 'You are Capy, a famously calm capybara (with a yuzu on your head) who lives above the Windows taskbar and helps an office worker through the day. Stay relaxed and reassuring - nothing stresses you - while being clear and useful.',
+      penguin: 'You are Pebble, a neat, organised little penguin in a red scarf who lives above the Windows taskbar and helps an office worker through the day. Be tidy, precise and friendly.',
+    })[settings.character] || 'You are Pip, a friendly, upbeat little desktop assistant who lives above the Windows taskbar and helps an office worker get through the day.',
     `Today is ${now.toDateString()}, local time ${now.toLocaleTimeString()}.` + (settings.userName ? ` The user's name is ${settings.userName}.` : ''),
     'You help with: writing and polishing emails, messages and reports; Excel/Word/PowerPoint how-tos and formulas; summarizing documents; translating; planning the day; explaining errors. Be practical and concise: short paragraphs and bullet lists, no long preambles. Use light markdown (bold, bullets, code blocks for formulas/scripts).',
     lang,
@@ -130,7 +136,7 @@ function systemPrompt(extra = '') {
       'These open immediately, so say "Opening ..." in one short sentence.',
     'Be honest about your limits: you cannot click inside other apps, read the screen, send emails or messages yourself, or control programs beyond opening them. If asked for something you cannot do, say so plainly and suggest the closest thing you can do. Never pretend you tried. Never start your reply with "Pip:".',
     'TABLES: when the user wants a table, list or anything for Excel, output a fenced block ```table\n{"title":"Customers","columns":["Name","Phone","Amount"],"rows":[["Ko Aung","09...",150000]]}\n``` (numbers as numbers, dates YYYY-MM-DD). Pip shows it with an "Open in Excel" button. Small comparison tables in normal answers can be markdown tables.',
-    'SLIDES: when the user wants a presentation/PowerPoint, output ```slides\n{"title":"...","subtitle":"...","slides":[{"title":"...","bullets":["..."],"notes":"..."}]}\n``` (5-10 slides, max 5 short bullets each). Pip builds a real PowerPoint file from it.',
+    'SLIDES: when the user wants a presentation/PowerPoint, output ```slides\n{"title":"...","subtitle":"...","slides":[{"title":"...","bullets":["..."],"notes":"..."}]}\n``` (5-10 slides, max 5 short bullets each). Write the slides in the language the user asked in (Burmese request = Burmese slides; keep each Burmese bullet short, under ~10 words). Pip builds a real PowerPoint file from it (Burmese gets the Myanmar Text font automatically).',
     `REMINDERS: you CAN set reminders. Add [[REMIND:YYYY-MM-DD HH:MM|short text]] on its own line, in local time (now: ${localStamp(now)}, ${now.toLocaleDateString('en-US', { weekday: 'long' })}). "in 30 minutes" = now + 30 min; "tomorrow morning" = tomorrow 09:00. Confirm in one short sentence.`,
     'Letters, memos, reports and minutes get an "Open in Word" button and emails (with a "Subject:" line) get an "Email draft" button automatically - so write them complete and ready to use.',
     'SPREADSHEETS: you CAN read the user\'s Excel/CSV data and draw charts. ' + (data
@@ -180,6 +186,7 @@ async function askAI({ text = '', audio = null, display = null, extraSystem = ''
   const target = streamTarget; streamTarget = null;
 
   if (!res.ok) { target.remove(); if (voiceEl) voiceEl.remove(); errMsg(res.error); return null; }
+  if (res.fellBack) sys(`↪ Answered by ${res.provider} (${(res.errors[0] || '').split(':')[0]} didn't work)`);
   const raw = res.text || streamText;
   // action tags count wherever the model put them - even on the HEARD line
   const tasks = [...raw.matchAll(/\[\[RUN:(\w+)\]\]/g)].map((m) => m[1]).filter((t) => TASK_LABELS[t]);
@@ -643,73 +650,143 @@ function wavBase64(pcm, rate) {
 }
 
 // ---------------------------------------------------------------- settings
-const CHAR_NAMES = { pip: 'Pip', bears: 'Mocha & Milk' };
+const CHAR_NAMES = { pip: 'Pip', bears: 'Mocha & Milk', cat: 'Mango', dog: 'Kopi', capy: 'Capy', penguin: 'Pebble' };
 function applyCharacter() {
   const c = CHAR_NAMES[settings.character] ? settings.character : 'pip';
   pipEl.dataset.char = c;
   $('#head .who b').textContent = CHAR_NAMES[c];
   input.placeholder = `Ask ${CHAR_NAMES[c]} anything...  (Enter = send)`;
-  $('#foot').textContent = `AI can make mistakes · drop a file on ${c === 'bears' ? 'us' : 'Pip'} to summarize`;
+  $('#foot').textContent = `AI can make mistakes · drop a file on ${c === 'bears' ? 'us' : CHAR_NAMES[c]} to summarize`;
   pipEl.title = `${CHAR_NAMES[c]} - click to chat, drag to move, drop a file to summarize`;
 }
 
-function syncModeRows() {
-  const direct = $('#sMode').value === 'direct';
-  document.querySelectorAll('.directOnly').forEach((e) => e.classList.toggle('hidden', !direct));
-  document.querySelectorAll('.relayOnly').forEach((e) => e.classList.toggle('hidden', direct));
+function showModelTag() {
+  $('#modelTag').textContent = settings.activeName
+    ? `${settings.activeModel || settings.activeName}${settings.activeMode === 'relay' ? ' · relay' : ''}` : 'no AI set up';
+  $('#modelTag').title = settings.activeName || '';
 }
-function showKeyStatus() {
-  $('#keyStatus').textContent = settings.hasKey
-    ? `\u2714 ${settings.keyCount} key(s) from ${settings.keyFrom}: ${settings.keyMasks.join(', ')}`
-    : 'No key yet. Paste one above, or put keys in buddy\\api-key.txt (one per line).';
+
+// ---- AI providers: list, add, edit, test, delete, choose active
+let presets = {}, editing = null;   // editing = draft being edited ({ id?, preset, ... })
+
+async function renderProviders(data) {
+  const { list, presets: pr } = data || await window.pip.listProviders();
+  if (pr) presets = pr;
+  const box = $('#pList'); box.innerHTML = '';
+  if (!list.length) box.innerHTML = '<div class="pNote">No AI provider yet - click <b>+ Add</b>.</div>';
+  for (const p of list) {
+    const row = document.createElement('div'); row.className = 'pRow' + (p.active ? ' active' : '');
+    const keyInfo = p.noKey ? 'no key needed' : p.keyCount ? `${p.keyCount} key${p.keyCount > 1 ? 's' : ''}` : '⚠ no key';
+    row.innerHTML = `<input type="radio" name="pActive" ${p.active ? 'checked' : ''} title="Use this one first">
+      <div class="pInfo"><b>${esc(p.name)}</b><small>${esc(p.model || 'no model chosen')}${p.type === 'gemini' ? ' · ' + (p.mode === 'direct' ? 'direct' : 'relay') : ''} · ${keyInfo}</small></div>`;
+    row.querySelector('input').onchange = async () => { const r = await window.pip.activateProvider(p.id); settings = r.settings; renderProviders(r); showModelTag(); };
+    const btn = (label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.onclick = fn; row.appendChild(b); };
+    btn('Edit', () => openEditor(p));
+    btn('✕', async () => {
+      if (!confirm(`Delete "${p.name}" and its saved keys?`)) return;
+      const r = await window.pip.deleteProvider(p.id); settings = r.settings; renderProviders(r); showModelTag();
+    });
+    box.appendChild(row);
+  }
 }
+
+$('#pAdd').onclick = async () => {
+  if (!Object.keys(presets).length) await renderProviders();
+  const m = $('#pAddMenu');
+  if (!m.classList.contains('hidden')) { m.classList.add('hidden'); return; }
+  m.innerHTML = '';
+  for (const [id, pr] of Object.entries(presets)) {
+    const b = document.createElement('button'); b.type = 'button';
+    b.innerHTML = `${esc(pr.name)}<small>${esc(pr.note || '')}</small>`;
+    b.onclick = () => { m.classList.add('hidden'); openEditor({ preset: id, name: pr.name, mode: pr.mode, relayUrl: pr.relayUrl, baseUrl: pr.baseUrl, model: pr.model, type: pr.type, noKey: pr.noKey, keyUrl: pr.keyUrl, note: pr.note, keyCount: 0 }); };
+    m.appendChild(b);
+  }
+  m.classList.remove('hidden');
+};
+
+function openEditor(p) {
+  editing = { ...p };
+  const pr = presets[p.preset] || {};
+  $('#pEditTitle').textContent = p.id ? `Edit: ${p.name}` : `Add: ${pr.name || p.name}`;
+  $('#pNote').textContent = p.note || pr.note || '';
+  $('#pKeyLink').classList.toggle('hidden', !(p.keyUrl || pr.keyUrl));
+  $('#pName').value = p.name || ''; $('#pMode').value = p.mode || 'relay'; $('#pRelay').value = p.relayUrl || pr.relayUrl || '';
+  $('#pBase').value = p.baseUrl || pr.baseUrl || ''; $('#pModel').value = p.model || '';
+  $('#pKey').value = ''; $('#pKey').classList.remove('reveal'); $('#pShow').textContent = 'Show';
+  $('#pKey').placeholder = p.keyCount ? `${p.keyCount} saved (${(p.keyMasks || []).join(', ')}) - leave empty to keep` : 'paste key - one per line to add several';
+  $('#pStatus').textContent = p.keyFrom && p.keyFrom !== 'Settings' ? `Using key from ${p.keyFrom}.` : '';
+  $('#pModelList').innerHTML = '';
+  const type = p.type || pr.type, noKey = p.noKey || pr.noKey;
+  document.querySelectorAll('.pGemini').forEach((e) => e.classList.toggle('hidden', type !== 'gemini'));
+  document.querySelectorAll('.pOpenAI').forEach((e) => e.classList.toggle('hidden', type !== 'openai'));
+  document.querySelectorAll('.pKeyRow').forEach((e) => e.classList.toggle('hidden', !!noKey));
+  syncRelayRow();
+  $('#pEdit').classList.remove('hidden');
+  $('#pEdit').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function syncRelayRow() { $('.pRelay').classList.toggle('hidden', (editing?.type || presets[editing?.preset]?.type) !== 'gemini' || $('#pMode').value === 'direct'); }
+$('#pMode').onchange = syncRelayRow;
+
+function readEditor() {
+  return { id: editing.id, preset: editing.preset, name: $('#pName').value.trim(), mode: $('#pMode').value,
+    relayUrl: $('#pRelay').value.trim(), baseUrl: $('#pBase').value.trim(), model: $('#pModel').value.trim() };
+}
+$('#pKeyLink').onclick = (e) => { e.preventDefault(); const u = editing.keyUrl || presets[editing.preset]?.keyUrl; if (u) window.open(u); };
+$('#pShow').onclick = () => { const r = $('#pKey').classList.toggle('reveal'); $('#pShow').textContent = r ? 'Hide' : 'Show'; };
+$('#pCancel').onclick = () => { $('#pEdit').classList.add('hidden'); editing = null; };
+$('#pLoadModels').onclick = async () => {
+  const b = $('#pLoadModels'); b.disabled = true; b.textContent = 'Loading...';
+  const list = await window.pip.providerModels(readEditor(), $('#pKey').value);
+  b.disabled = false; b.textContent = 'Load models';
+  $('#pModelList').innerHTML = list.map((m) => `<option value="${esc(m)}">`).join('');
+  $('#pStatus').textContent = list.length ? `${list.length} models found - click the Model box to pick one.` : 'No model list (check the key / URL), type the model name yourself.';
+  if (list.length && !$('#pModel').value) $('#pModel').value = list[0];
+};
+$('#pTest').onclick = async () => {
+  const b = $('#pTest'); b.disabled = true; $('#pStatus').textContent = 'Testing...';
+  if ($('#sProxy').value.trim() !== (settings.proxy || '')) settings = await window.pip.setSettings({ proxy: $('#sProxy').value.trim() });
+  const res = await window.pip.testProvider(readEditor(), $('#pKey').value);
+  b.disabled = false;
+  $('#pStatus').innerHTML = res.map((r) => `<span class="${r.ok ? 'ok' : 'bad'}">${r.ok ? '✔' : '✖'} ${esc(r.key)}: ${esc(r.msg)}</span>`).join('<br>')
+    + (res.some((r) => r.ok) ? '<br>Click <b>Save provider</b> to keep it.' : '');
+};
+$('#pClearKeys').onclick = async () => {
+  if (!editing.id || !confirm('Remove the saved keys for this provider?')) return;
+  const r = await window.pip.saveProvider({ ...readEditor(), clearKeys: true });
+  settings = r.settings; renderProviders(r); $('#pKey').placeholder = 'paste key'; $('#pStatus').textContent = 'Keys removed.';
+};
+$('#pSave').onclick = async () => {
+  const d = readEditor();
+  if (presets[d.preset]?.type === 'openai' && !d.baseUrl) { $('#pStatus').textContent = 'Enter the API base URL.'; return; }
+  const r = await window.pip.saveProvider({ ...d, apiKey: $('#pKey').value });
+  settings = r.settings; renderProviders(r); showModelTag();
+  $('#pEdit').classList.add('hidden'); editing = null;
+  sys(`✔ Saved AI provider: ${d.name}`);
+};
+
+// ---- the rest of Settings
 async function openSettings() {
-  $('#sKey').value = ''; $('#sKey').classList.remove('reveal'); $('#sShow').textContent = 'Show';
-  $('#sKey').placeholder = settings.hasKey ? 'saved - leave empty to keep, or paste new key(s) to replace' : 'paste key - one per line to add several';
-  showKeyStatus();
+  settings = await window.pip.getSettings();
   $('#sAuto').checked = !!settings.autoStart;
   $('#sChar').value = settings.character || 'pip';
-  $('#sMode').value = settings.mode; $('#sRelay').value = settings.relayUrl; $('#sProxy').value = settings.proxy;
-  $('#sModel').value = settings.model; $('#sLang').value = settings.replyLang; $('#sName').value = settings.userName;
+  $('#sFallback').checked = settings.fallback !== false;
+  $('#sProxy').value = settings.proxy || '';
+  $('#sLang').value = settings.replyLang; $('#sName').value = settings.userName;
   $('#sSpeak').checked = settings.speak; loadVoices();
-  syncModeRows();
+  $('#pEdit').classList.add('hidden'); $('#pAddMenu').classList.add('hidden');
   $('#settings').classList.remove('hidden');
-  const list = await window.pip.models();
-  $('#modelList').innerHTML = list.map((m) => `<option value="${esc(m)}">`).join('');
+  renderProviders();
 }
-$('#sMode').onchange = syncModeRows;
-$('#sShow').onclick = () => { const r = $('#sKey').classList.toggle('reveal'); $('#sShow').textContent = r ? 'Hide' : 'Show'; };
-$('#sClearKeys').onclick = async () => {
-  if (!confirm('Remove the API keys saved in Pip?')) return;
-  settings = await window.pip.setSettings({ apiKey: '' });
-  showKeyStatus();
-};
-$('#sTest').onclick = async () => {
-  const typed = $('#sKey').value.trim();
-  if (!typed && !settings.hasKey) { $('#keyStatus').textContent = 'Paste a key first.'; return; }
-  // test with the connection chosen on screen, even before Save
-  settings = await window.pip.setSettings({ mode: $('#sMode').value, relayUrl: $('#sRelay').value.trim(), proxy: $('#sProxy').value.trim() });
-  $('#sTest').disabled = true; $('#keyStatus').textContent = 'Testing...';
-  const res = await window.pip.testKeys(typed);
-  $('#sTest').disabled = false;
-  $('#keyStatus').innerHTML = res.map((r) => `<span class="${r.ok ? 'ok' : 'bad'}">${r.ok ? '✔' : '✖'} ${esc(r.key)}: ${esc(r.msg)}</span>`).join('<br>')
-    + (typed && res.some((r) => r.ok) ? '<br>Click <b>Save</b> to keep these keys.' : '');
-};
 window.pip.onSettingsChanged(async () => { settings = await window.pip.getSettings(); });
 $('#btnSettings').onclick = openSettings;
 $('#sCancel').onclick = () => $('#settings').classList.add('hidden');
-$('#keyLink').onclick = (e) => { e.preventDefault(); window.open('https://aistudio.google.com/apikey'); };
 $('#sSave').onclick = async () => {
-  const patch = {
-    mode: $('#sMode').value, relayUrl: $('#sRelay').value.trim(), proxy: $('#sProxy').value.trim(),
-    model: $('#sModel').value.trim() || 'gemini-2.5-flash', replyLang: $('#sLang').value,
+  settings = await window.pip.setSettings({
+    proxy: $('#sProxy').value.trim(), fallback: $('#sFallback').checked, replyLang: $('#sLang').value,
     userName: $('#sName').value.trim(), speak: $('#sSpeak').checked, voice: $('#sVoice').value,
     autoStart: $('#sAuto').checked, character: $('#sChar').value,
-  };
-  if ($('#sKey').value.trim()) patch.apiKey = $('#sKey').value.trim();
-  settings = await window.pip.setSettings(patch);
-  applyCharacter();
-  $('#modelTag').textContent = settings.model + (settings.mode === 'relay' ? ' \u00B7 relay' : '');
+  });
+  applyCharacter(); showModelTag();
   $('#settings').classList.add('hidden');
   sys('Settings saved.');
 };
@@ -718,14 +795,14 @@ $('#sSave').onclick = async () => {
 (async () => {
   settings = await window.pip.getSettings();
   applyCharacter();
-  $('#modelTag').textContent = settings.model + (settings.mode === 'relay' ? ' \u00B7 relay' : '');
+  showModelTag();
   loadVoices();
   const h = new Date().getHours();
   const greet = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
-  sys(`${greet}${settings.userName ? ', ' + settings.userName : ''}! Ask me anything, drop a file on me, or tap a button above.\nHotkeys: Ctrl+Alt+Space show/hide - Ctrl+Alt+V talk`);
+  sys(`${greet}${settings.userName ? ', ' + settings.userName : ''}! Ask me anything, drop a file on me, or tap a button above.\nHotkeys: Ctrl+Alt+Space show/hide · Ctrl+Alt+V talk · Ctrl+Alt+C clipboard · Ctrl+Alt+S settings (or right-click me)`);
   setTimeout(() => {
     mood('happy', 1500);
-    say(settings.hasKey ? `${greet}! Click me if you need anything.` : "Hi, I'm Pip! Click me, then \u2699 to add your free Gemini key.", 8000);
+    say(settings.hasKey ? `${greet}! Click me if you need anything.` : `Hi! Click me, then \u2699 Settings \u2192 AI providers to add an API key (Gemini is free).`, 8000);
   }, 800);
   if (!settings.hasKey) setTimeout(() => { openPanel(); openSettings(); }, 1500);
 

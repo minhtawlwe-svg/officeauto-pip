@@ -32,7 +32,7 @@ const SKILLS = [
   { id: 'ocr', group: 'Documents', icon: '🖼️', name: 'Read screenshot text', run: 'clipimage',
     prompt: 'Extract all text from this image exactly, keeping the layout. If it contains a table, output it as a ```table block. Finish with one line saying what the image is.' },
   { id: 'ppt', group: 'Documents', icon: '🎞️', name: 'Make PowerPoint', hint: 'Topic or your content, e.g. "Q3 sales review for managers, 6 slides"', autoPpt: true,
-    prompt: 'Create a presentation as a ```slides block: strong title + subtitle, 5-10 slides, max 5 short bullets each, speaker notes. Use the content given and never invent numbers. After the block, one short sentence.\n\n{input}' },
+    prompt: 'Create a presentation as a ```slides block: strong title + subtitle, 5-10 slides, max 5 short bullets each, speaker notes. Write it in the same language as my request below (Burmese request = all slides in Burmese, short bullets). Use the content given and never invent numbers. After the block, one short sentence.\n\n{input}' },
   { id: 'explain', group: 'Documents', icon: '💡', name: 'Explain simply', hint: 'Paste anything confusing: a policy, contract clause, error message',
     prompt: 'Explain this simply for a busy office worker: what it means, what I need to do, any risk or deadline. Short bullets.\n\n{input}' },
   { id: 'sop', group: 'Documents', icon: '✅', name: 'Checklist / SOP', hint: 'Which process? e.g. month-end closing, new staff onboarding',

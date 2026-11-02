@@ -19,6 +19,18 @@ function Get-App([string]$progId) {
 
 function Clean([string]$s) { ($s -replace '\*\*', '' -replace '__', '' -replace '`', '').Trim() }
 
+# Burmese (Myanmar script) needs a font that has the glyphs and taller lines,
+# otherwise text shows as boxes or the stacked characters get clipped.
+$MyFont = 'Myanmar Text'
+$MyRange = '[' + [char]0x1000 + '-' + [char]0x109F + ']'
+$Burmese = (ConvertTo-Json $d -Depth 10 -Compress) -match $MyRange
+function Set-Font2($tr2, [double]$lineSpacing) {
+    # TextFrame2 font: set Latin + complex-script + other so every script uses the Myanmar font
+    $tr2.Font.Name = $MyFont; $tr2.Font.NameComplexScript = $MyFont; $tr2.Font.NameOther = $MyFont; $tr2.Font.NameFarEast = $MyFont
+    $tr2.ParagraphFormat.LineRuleWithin = -1
+    $tr2.ParagraphFormat.SpaceWithin = $lineSpacing
+}
+
 try {
     switch ($Kind) {
         'excel' {
@@ -42,6 +54,7 @@ try {
             $range = $ws.Range($ws.Cells.Item(1, 1), $ws.Cells.Item($rows.Count + 1, $cols.Count))
             $range.Value2 = $arr
             [void]$ws.ListObjects.Add(1, $range, $null, 1)      # format as Excel table (filters, banded rows)
+            if ($Burmese) { $range.Font.Name = $MyFont; [void]$range.Rows.AutoFit() }
             [void]$range.Columns.AutoFit()
             $ws.Activate()
             [Console]::Out.Write("OK|Excel table with $($rows.Count) rows")
@@ -68,6 +81,12 @@ try {
                 $sel.TypeParagraph()
                 if ($text.Trim()) { $first = $false }
             }
+            if ($Burmese) {
+                $f = $doc.Content.Font
+                $f.Name = $MyFont; $f.NameBi = $MyFont; $f.NameOther = $MyFont
+                $doc.Content.ParagraphFormat.LineSpacingRule = 5    # multiple
+                $doc.Content.ParagraphFormat.LineSpacing = 15       # 1.25 lines
+            }
             $doc.Activate()
             [Console]::Out.Write('OK|Word document')
         }
@@ -81,12 +100,28 @@ try {
             $s = $pres.Slides.Add(1, 1)
             $s.Shapes.Item(1).TextFrame.TextRange.Text = (Clean $d.Title)
             if ($s.Shapes.Count -ge 2) { $s.Shapes.Item(2).TextFrame.TextRange.Text = (Clean $d.Subtitle) }
+            if ($Burmese) {
+                Set-Font2 $s.Shapes.Item(1).TextFrame2.TextRange 1.15
+                $s.Shapes.Item(1).TextFrame2.TextRange.Font.Size = 40
+                if ($s.Shapes.Count -ge 2) { Set-Font2 $s.Shapes.Item(2).TextFrame2.TextRange 1.2 }
+            }
+            for ($k = 1; $k -le [Math]::Min(2, $s.Shapes.Count); $k++) { $s.Shapes.Item($k).TextFrame2.AutoSize = 2; $s.Shapes.Item($k).TextFrame2.WordWrap = -1 }
             $i = 2
             foreach ($sl in @($d.Slides)) {
                 $s = $pres.Slides.Add($i, 2)
-                $s.Shapes.Item(1).TextFrame.TextRange.Text = (Clean $sl.title)
-                $s.Shapes.Item(1).TextFrame.TextRange.Font.Color.RGB = 0x4A3A1C
-                $s.Shapes.Item(2).TextFrame.TextRange.Text = ((@($sl.bullets) | ForEach-Object { Clean $_ }) -join "`r")
+                $title = $s.Shapes.Item(1); $body = $s.Shapes.Item(2)
+                $title.TextFrame.TextRange.Text = (Clean $sl.title)
+                $title.TextFrame.TextRange.Font.Color.RGB = 0x4A3A1C
+                $body.TextFrame.TextRange.Text = ((@($sl.bullets) | ForEach-Object { Clean $_ }) -join "`r")
+                if ($Burmese) {
+                    Set-Font2 $title.TextFrame2.TextRange 1.1
+                    $title.TextFrame2.TextRange.Font.Size = 30
+                    Set-Font2 $body.TextFrame2.TextRange 1.35
+                    $body.TextFrame2.TextRange.Font.Size = 20
+                    $body.TextFrame2.TextRange.ParagraphFormat.SpaceAfter = 6
+                }
+                $title.TextFrame2.AutoSize = 2; $body.TextFrame2.AutoSize = 2    # shrink text to fit the box
+                $title.TextFrame2.WordWrap = -1; $body.TextFrame2.WordWrap = -1
                 if ($sl.notes) { $s.NotesPage.Shapes.Placeholders.Item(2).TextFrame.TextRange.Text = [string]$sl.notes }
                 $i++
             }
