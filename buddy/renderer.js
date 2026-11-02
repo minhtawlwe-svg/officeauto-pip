@@ -10,8 +10,6 @@ const FOLDER_TASKS = ['ToPdf', 'Duplicates'];
 // programs Pip may open (names must match main.js APPS)
 const APPS = { excel: 1, word: 1, powerpoint: 1, outlook: 1, notepad: 1, calculator: 1, explorer: 1, edge: 1, chrome: 1, teams: 1, paint: 1, snip: 1 };
 const TAG_RE = /\[\[(RUN|OPEN|APP|READ|REMIND|CLOSE|NEW):[^\]]*\]\]/g;
-const CHART_RE = /```(?:chart|json)\s*([\s\S]*?)```/g;
-const BLOCK_RE = /```(table|slides)\s*([\s\S]*?)```/g;
 
 // spreadsheet loaded for analysis - stays loaded for follow-up questions
 let data = null;   // { name, tables, text }
@@ -163,6 +161,7 @@ function systemPrompt(extra = '') {
       'type: bar | hbar | line | pie | doughnut. x = category or date column (exact column name). y = numeric column name, or a list of names, or omit to count rows. agg: sum | avg | count | max | min. ' +
       'Optional "bucket":"day"|"month"|"year" when x holds dates (use line charts for trends over time). Optional "sort":"desc"|"asc"|"none". ' +
       'Add "excel":true when the user wants the chart in Excel too - Pip then adds a sheet with the numbers and a real Excel chart to their workbook. ' +
+      'You may also chart a table you write yourself (e.g. sample data): output the ```table block, then a SEPARATE ```chart block whose "sheet" is that table\'s title - with "excel":true Pip builds a new workbook with the table and the chart. Always one JSON object per fenced block. ' +
       'Pip computes the exact numbers from ALL rows and shows them under the chart, so NEVER state totals or numbers you did not see in the data - describe patterns instead. If the user asks for "a good chart", pick the most useful one yourself (max 3 charts).',
     'If the input is a voice recording: line 1 is "HEARD: <exactly what the user said>" and nothing else (no reply, no tags on that line). Then a NEW line with your reply and any tags. Example:\nHEARD: open Facebook\nOpening Facebook.\n[[OPEN:https://www.facebook.com]]\nAnswer ONLY this new recording - earlier messages were already answered, never repeat them. ' +
       ({ my: 'The user speaks BURMESE (Myanmar language). Transcribe it in Myanmar script (Unicode), e.g. "HEARD: notepad ဖွင့်ပေး", even if the audio is not perfect - give your best guess. English words mixed in stay in English.',
@@ -239,21 +238,9 @@ async function askAI({ text = '', audio = null, display = null, extraSystem = ''
     voiceEl.innerHTML = '&#127908; ' + esc(heard || '(voice)');
   }
   answer = answer.replace(/^\s*Pip:\s*/i, '');
-  const charts = [];
-  answer = answer.replace(CHART_RE, (block, json) => {
-    try { const spec = JSON.parse(json); if (spec && spec.type && spec.x) { charts.push(spec); return ''; } } catch { }
-    return block;
-  }).trim();
-  const blocks = { table: [], slides: [] };
-  answer = answer.replace(BLOCK_RE, (block, kind, json) => {
-    const spec = parseLooseJSON(json);
-    if (spec) {
-      const emptyTable = kind === 'table' && !(spec.rows || []).some((r) => (r || []).some((c) => c !== '' && c != null));
-      if (!emptyTable) blocks[kind].push(spec);
-      return '';
-    }
-    return '\n_(I tried to make a ' + kind + ' but it came out broken - ask me again.)_\n';   // never show raw JSON
-  }).trim();
+  const ex = extractBlocks(answer);
+  answer = ex.text + (ex.broken ? '\n\n_(Part of my answer came out broken - ask me again.)_' : '');
+  const charts = ex.charts, blocks = { table: ex.tables, slides: ex.slides };
   const remTags = [...raw.matchAll(/\[\[REMIND:([^|\]]+)\|([^\]]+)\]\]/g)].map((m) => ({ when: m[1].trim(), text: m[2].trim() }));
   const wantsRead = /\[\[READ:/.test(raw) && !afterRead;
   const anything = opens.length || tasks.length || charts.length || wantsRead || blocks.table.length || blocks.slides.length || remTags.length;
@@ -269,7 +256,7 @@ async function askAI({ text = '', audio = null, display = null, extraSystem = ''
   }
   target.classList.remove('typing');
   target.innerHTML = md(answer);
-  for (const spec of charts.slice(0, 3)) renderChart(target, spec);
+  for (const spec of charts.slice(0, 3)) renderChart(target, spec, blocks.table);
   for (const spec of blocks.table.slice(0, 3)) renderTable(target, spec);
   for (const spec of blocks.slides.slice(0, 1)) renderSlides(target, spec, autoPpt);
   for (const r of remTags.slice(0, 5)) setReminderFromTag(r);
@@ -371,9 +358,14 @@ function findCol(t, name) {
 
 const PALETTE = ['#14a8b4', '#8b7cff', '#f2b33d', '#ef6f8b', '#39c27f', '#4d9bff', '#ff9f5a', '#b6e35a', '#c084fc', '#7dd3fc'];
 
-function computeChart(spec) {
-  if (!data) throw new Error('No data loaded - click \u{1F4CA} Excel chart or attach an Excel file first.');
-  const t = data.tables.find((x) => x.sheet.toLowerCase() === String(spec.sheet || '').toLowerCase()) || data.tables[0];
+// localTables = tables the AI wrote in the same answer (e.g. sample data); they can be charted too
+function computeChart(spec, localTables = []) {
+  const local = localTables.map((x) => ({ sheet: String(x.title || 'Table'), columns: (x.columns || []).map(String), rows: (x.rows || []).map((r) => (Array.isArray(r) ? r : [])), spec: x }));
+  const wanted = String(spec.sheet || '').toLowerCase();
+  const t = local.find((x) => x.sheet.toLowerCase() === wanted)
+    || (data && data.tables.find((x) => x.sheet.toLowerCase() === wanted))
+    || local[0] || (data && data.tables[0]);
+  if (!t) throw new Error('No data loaded - click \u{1F4CA} Excel chart or attach an Excel file first.');
   const xi = findCol(t, spec.x);
   if (xi < 0) throw new Error(`Column "${spec.x}" not found. Columns: ${t.columns.join(', ')}`);
   const ys = [].concat(spec.y || []).filter(Boolean);
@@ -406,7 +398,9 @@ function computeChart(spec) {
   let rows = [...groups.entries()].map(([label, g]) => ({ label, vals: (yi.length ? yi : [0]).map((_, k) => val(g, k)) }));
   const type = String(spec.type).toLowerCase();
   const timeLike = bucket || type === 'line' || colKind(t, xi) === 'date';
-  const sort = spec.sort || (timeLike ? 'asc-label' : 'desc');
+  // month/day names and tables the AI wrote keep their own order (Jan, Feb, Mar... not sorted by value)
+  const ordered = /^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|mon|tue|wed|thu|fri|sat|sun|q[1-4]|week)/i.test(String(rows[0]?.label || '')) || !!t.spec;
+  const sort = spec.sort || (timeLike ? 'asc-label' : ordered ? 'none' : 'desc');
   if (sort === 'desc') rows.sort((a, b) => b.vals[0] - a.vals[0]);
   else if (sort === 'asc') rows.sort((a, b) => a.vals[0] - b.vals[0]);
   else if (sort === 'asc-label') rows.sort((a, b) => (a.label > b.label ? 1 : -1));
@@ -424,6 +418,7 @@ function computeChart(spec) {
     type, title: spec.title || `${what} by ${t.columns[xi]}`, labels: rows.map((r) => r.label),
     datasets: (yi.length ? ys : ['Count']).map((name, k) => ({ label: yi.length ? t.columns[yi[k]] : 'Count', data: rows.map((r) => round(r.vals[k])) })),
     caption: `${what} by ${t.columns[xi]}${bucket ? ` (per ${bucket})` : ''} · from ${used} rows of "${t.sheet}"`,
+    localTable: t.spec || null,   // set when the data came from a table in the AI's answer
   };
 }
 
@@ -466,9 +461,9 @@ function exportPng(c) {
   return url;
 }
 
-function renderChart(container, spec) {
+function renderChart(container, spec, localTables = []) {
   let c;
-  try { c = computeChart(spec); } catch (e) { const er = document.createElement('div'); er.className = 'chartErr'; er.textContent = '⚠ ' + e.message; container.appendChild(er); return; }
+  try { c = computeChart(spec, localTables); } catch (e) { const er = document.createElement('div'); er.className = 'chartErr'; er.textContent = '⚠ ' + e.message; container.appendChild(er); return; }
   const box = document.createElement('div'); box.className = 'chart';
   const wrap = document.createElement('div'); wrap.className = 'chartCanvas';
   const cv = document.createElement('canvas'); wrap.appendChild(cv); box.appendChild(wrap);
@@ -482,7 +477,14 @@ function renderChart(container, spec) {
   btn('Save PNG', async () => { const f = await window.pip.savePng(exportPng(c), (c.title.replace(/[^\w -]+/g, '').trim() || 'chart') + '.png'); if (f) sys('Saved ' + f); });
   const toExcel = async (b) => {
     if (b) { b.disabled = true; b.textContent = 'Adding...'; }
-    const r = await window.pip.excelChart({ File: data.path || '', Title: c.title, Type: c.type, XLabel: spec.x, Labels: c.labels, Datasets: c.datasets.map((d) => ({ label: d.label, data: d.data })) });
+    const chart = { Title: c.title, Type: c.type, XLabel: spec.x, Labels: c.labels, Datasets: c.datasets.map((d) => ({ label: d.label, data: d.data })) };
+    let r;
+    if (c.localTable) {
+      // data made by the AI: new workbook with the data table first, then the chart sheet in that same workbook
+      const t = c.localTable;
+      const made = await window.pip.officeMake('excel', { Title: t.title || 'Data', Columns: t.columns, Rows: t.rows });
+      r = made.ok ? await window.pip.excelChart({ ...chart, UseActive: true }) : { ok: false, error: made.error };
+    } else r = await window.pip.excelChart({ ...chart, File: (data && data.path) || '' });
     if (b) { b.disabled = false; b.textContent = 'Add to Excel'; }
     if (r.ok) { sys(`✔ Added sheet "${r.sheet}" with an Excel chart to ${r.book} (not saved yet - press Ctrl+S in Excel to keep it).`); mood('happy', 1500); }
     else errMsg('Excel: ' + r.error);
@@ -495,6 +497,48 @@ function renderChart(container, spec) {
   if (c.type === 'hbar') wrap.style.height = Math.max(200, c.labels.length * 18 + 60) + 'px';
   new Chart(cv, chartConfig(c, false));
   if (spec.excel) toExcel(bar.querySelector('button:nth-child(3)'));
+}
+
+// Pulls every table / chart / slides object out of the answer's ``` blocks - even several merged
+// into one block ("table {...} chart {...}"). Real code blocks (formulas, scripts) are left alone.
+function extractBlocks(answer) {
+  const out = { charts: [], tables: [], slides: [], broken: false };
+  out.text = answer.replace(/```([a-z]*)[ \t]*\r?\n?([\s\S]*?)(```|$)/gi, (block, lang, body) => {
+    lang = lang.toLowerCase();
+    const isData = ['chart', 'json', 'table', 'slides'].includes(lang) || /^\s*(table|chart|slides)?\s*\{/i.test(body);
+    if (!isData) return block;
+    const objs = jsonObjects(body);
+    if (!objs.length) { out.broken = true; return ''; }
+    for (const o of objs) {
+      const spec = parseLooseJSON(o.json);
+      const label = (o.label || lang).toLowerCase();
+      if (!spec || typeof spec !== 'object') { out.broken = true; continue; }
+      if (/chart/.test(label) || (spec.type && spec.x)) out.charts.push(spec);
+      else if (/slides/.test(label) || Array.isArray(spec.slides)) out.slides.push(spec);
+      else if (/table/.test(label) || (spec.columns && spec.rows)) {
+        const hasData = (spec.rows || []).some((r) => (r || []).some((c) => c !== '' && c != null));
+        if (hasData) out.tables.push(spec);
+      } else out.broken = true;
+    }
+    return '';
+  }).trim();
+  return out;
+}
+// top-level {...} objects in a text, with the words just before each one as its label
+function jsonObjects(body) {
+  const found = [];
+  let depth = 0, start = -1, inStr = false, escNext = false, labelFrom = 0;
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    if (inStr) { if (escNext) escNext = false; else if (ch === '\\') escNext = true; else if (ch === '"') inStr = false; continue; }
+    if (ch === '"' && depth > 0) { inStr = true; continue; }
+    if (ch === '{') { if (depth === 0) start = i; depth++; }
+    else if (ch === '}' && depth > 0 && --depth === 0) {
+      found.push({ label: body.slice(labelFrom, start).replace(/[^a-z]/gi, ' ').trim(), json: body.slice(start, i + 1) });
+      labelFrom = i + 1;
+    }
+  }
+  return found;
 }
 
 // JSON from the model, repaired for common slips: [,] holes, trailing commas, smart quotes

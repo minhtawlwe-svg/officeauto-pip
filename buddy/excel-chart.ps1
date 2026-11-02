@@ -15,7 +15,9 @@ try {
 
     $wb = $null
     $file = [string]$d.File
-    if ($file -and $file -notmatch '\.csv$') {
+    if ($d.UseActive -and $xl.ActiveWorkbook) {
+        $wb = $xl.ActiveWorkbook                    # the workbook Pip just created with the data table
+    } elseif ($file -and $file -notmatch '\.csv$') {
         foreach ($w in $xl.Workbooks) { if ($w.FullName -eq $file) { $wb = $w } }
         if (-not $wb) { $wb = $xl.Workbooks.Open($file) }
     } else {
