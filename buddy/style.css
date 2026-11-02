@@ -159,3 +159,33 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #pip.worried .mouth.smile { display: none; } #pip.worried .mouth.flat { display: block; }
 #pip.drag .bob { transform: rotate(-6deg); animation: none; }
 
+/* ---------------- character switch */
+#pip .char-bears { display: none; }
+#pip[data-char="bears"] { width: 186px; }
+#pip[data-char="bears"] .char-pip { display: none; }
+#pip[data-char="bears"] .char-bears { display: block; }
+
+/* Mocha & Milk */
+.char-bears .body.brown, .char-bears .arm.brown { fill: #b98059; stroke: #5a3a2a; }
+.char-bears .brownDark { fill: #7a4f36; }
+.char-bears .brownLight { fill: #e3b58f; }
+.char-bears .body.milk, .char-bears .arm.milk { fill: #fbfbf8; stroke: #6d6a72; }
+.char-bears .greyFoot { fill: #c9c6cc; }
+.char-bears .earIn { fill: #7a4f36; }
+.char-bears .earIn.pink { fill: #ffc2cf; }
+.char-bears .snout { fill: #f4d8bf; }
+.char-bears .milkSnout { fill: #fff; stroke: #d8d4da; stroke-width: 1.5; }
+.char-bears .nose { fill: #2b1d1a; }
+.char-bears .pupil { fill: #1f1716; }
+.char-bears .bow { fill: #ff6f91; stroke: #c4405f; stroke-width: 1; }
+.char-bears .bowKnot { fill: #c4405f; }
+.char-bears .mouth { stroke: #3a2420; stroke-width: 2.5; }
+.char-bears .mouth.talk { fill: #a3354e; transform-box: fill-box; transform-origin: center; }
+.char-bears .eye { transform-origin: center; }
+.char-bears .lid, .char-bears .brow { stroke: #3a2420; }
+.char-bears .hearts { display: none; fill: #ff6f91; }
+.char-bears .bob2 { animation-delay: -1.5s; }
+.char-bears .armR { transform-origin: 184px 120px; }
+#pip.happy .char-bears .hearts, #pip.talk .char-bears .hearts { display: block; animation: floatUp 1.4s ease-out infinite; }
+@keyframes floatUp { from { transform: translateY(8px); opacity: 0; } 40% { opacity: 1; } to { transform: translateY(-10px); opacity: 0; } }
+

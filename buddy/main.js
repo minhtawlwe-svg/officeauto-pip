@@ -20,6 +20,7 @@ const DEFAULTS = {
   speak: true,
   voice: '',
   userName: '',
+  character: 'pip',                                   // pip | bears
   autoStart: true,                                     // launch Pip when Windows starts
 };
 const KEY_FILE = path.join(__dirname, 'api-key.txt'); // optional plain-text keys, one per line
@@ -261,7 +262,7 @@ async function readFileForAI(p) {
   if (['.xlsx', '.xlsm', '.xls', '.csv'].includes(ext)) {
     const tables = ext === '.csv' ? [csvTable(fs.readFileSync(p, 'utf8'), path.basename(p, ext))] : await excelTables(p);
     if (!tables.some(t => t.rows.length)) throw new Error(`${name} has no data rows.`);
-    return { name, text: tablesToText(tables), tables };
+    return { name, path: p, text: tablesToText(tables), tables };
   }
   if (TEXT_EXT.includes(ext)) return { name, text: fs.readFileSync(p, 'utf8').slice(0, 150000) };
   if (MIME[ext]) {
@@ -458,6 +459,19 @@ function registerIpc() {
     return { ok: true, label: key };
   });
   ipcMain.handle('excel:active', () => activeExcelPath());
+  ipcMain.handle('excel:chart', (_e, chart) => new Promise((resolve) => {
+    const json = path.join(app.getPath('temp'), `pip-chart-${Date.now()}.json`);
+    fs.writeFileSync(json, JSON.stringify(chart), 'utf8');
+    const ps = spawn(path.join(process.env.WINDIR, 'System32\\WindowsPowerShell\\v1.0\\powershell.exe'),
+      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, 'excel-chart.ps1'), '-Json', json], { windowsHide: true });
+    let out = '';
+    ps.stdout.on('data', (d) => out += d); ps.stderr.on('data', (d) => out += d);
+    ps.on('close', () => {
+      fs.rmSync(json, { force: true });
+      const [status, a, b] = out.trim().split('|');
+      resolve(status === 'OK' ? { ok: true, sheet: a, book: b } : { ok: false, error: a || out.trim().slice(0, 200) || 'Excel chart failed' });
+    });
+  }));
   ipcMain.handle('clip:image', (_e, dataUrl) => { clipboard.writeImage(nativeImage.createFromDataURL(dataUrl)); return true; });
   ipcMain.handle('file:savePng', async (_e, { dataUrl, name }) => {
     const r = await dialog.showSaveDialog(win, { defaultPath: path.join(app.getPath('documents'), name), filters: [{ name: 'PNG image', extensions: ['png'] }] });

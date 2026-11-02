@@ -30,12 +30,13 @@ Pip starts automatically with Windows from now on. To turn that off, untick *Sta
 | Click Pip | Opens the chat (emails, Excel formulas, translation, planning, "explain this error") |
 | Drag Pip | Moves it anywhere |
 | Drop a PDF, DOCX, TXT, CSV or image on Pip, or use 📎 | Summary, key points, action items |
-| **📊 Excel chart**, or say "read my Excel data and show a chart" | Reads the workbook **open in Excel** (or a file you pick: .xlsx / .xls / .csv), explains it, and draws charts in the chat. Gemini only chooses the chart; **Pip calculates every number from all rows**, so totals are exact. Buttons: Copy image (white background for Word/email), Save PNG, Numbers, Copy numbers |
+| **📊 Excel chart**, or say "read my Excel data and show a chart" | Reads the workbook **open in Excel** (or a file you pick: .xlsx / .xls / .csv), explains it, and draws charts in the chat. Gemini only chooses the chart; **Pip calculates every number from all rows**, so totals are exact. Buttons: **Add to Excel** (new sheet with the numbers + a real, editable Excel chart, not saved until you press Ctrl+S), Copy image (white background for Word/email), Save PNG, Numbers. Say "show it in Excel too" and it is added automatically |
 | **✨ Daily report** | Turns today's note into a report email for your manager (Copy / Email draft) |
 | 🎤 or **Ctrl+Alt+V** | Talk to Pip; press again to send. Pip reads its answer aloud |
 | **Ctrl+Alt+Space** | Show / hide Pip |
 | Say "open YouTube" / "search YouTube for lofi music" / "open Excel" | Opens the website or program right away (Excel, Word, PowerPoint, Outlook, Notepad, Calculator, Explorer, Edge, Chrome, Teams, Paint, Snip) |
 | Say "organize my downloads" | Pip shows a **▶ Run** button. Nothing runs until you click it |
+| ⚙ Settings → Character | Switch between **Pip** (office buddy) and **Mocha & Milk** (an original cute bear couple) |
 | Tray icon (right-click) | Settings / API keys, Start with Windows, Reset position, Quit |
 
 Pip also changes expression, falls asleep when you're away, reminds you at lunch, and offers to write your daily report near home time.

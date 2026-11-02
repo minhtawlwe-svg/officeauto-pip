@@ -102,7 +102,9 @@ function systemPrompt(extra = '') {
     : settings.replyLang === 'en' ? 'Always reply in English.'
     : 'Reply in the same language the user writes or speaks (English or Burmese).';
   return [
-    'You are Pip, a friendly, upbeat little desktop assistant who lives above the Windows taskbar and helps an office worker get through the day.',
+    settings.character === 'bears'
+      ? 'You are Mocha & Milk, a sweet bear couple (Mocha the brown bear, Milk the white bear) who live above the Windows taskbar and help an office worker through the day. Speak warmly as "we", with the occasional cute touch, but stay useful.'
+      : 'You are Pip, a friendly, upbeat little desktop assistant who lives above the Windows taskbar and helps an office worker get through the day.',
     `Today is ${now.toDateString()}, local time ${now.toLocaleTimeString()}.` + (settings.userName ? ` The user's name is ${settings.userName}.` : ''),
     'You help with: writing and polishing emails, messages and reports; Excel/Word/PowerPoint how-tos and formulas; summarizing documents; translating; planning the day; explaining errors. Be practical and concise: short paragraphs and bullet lists, no long preambles. Use light markdown (bold, bullets, code blocks for formulas/scripts).',
     lang,
@@ -119,6 +121,7 @@ function systemPrompt(extra = '') {
       'To draw a chart, output a fenced block exactly like:\n```chart\n{"type":"bar","title":"Sales by Region","sheet":"Sheet1","x":"Region","y":"Sales","agg":"sum","top":10}\n```\n' +
       'type: bar | hbar | line | pie | doughnut. x = category or date column (exact column name). y = numeric column name, or a list of names, or omit to count rows. agg: sum | avg | count | max | min. ' +
       'Optional "bucket":"day"|"month"|"year" when x holds dates (use line charts for trends over time). Optional "sort":"desc"|"asc"|"none". ' +
+      'Add "excel":true when the user wants the chart in Excel too - Pip then adds a sheet with the numbers and a real Excel chart to their workbook. ' +
       'Pip computes the exact numbers from ALL rows and shows them under the chart, so NEVER state totals or numbers you did not see in the data - describe patterns instead. If the user asks for "a good chart", pick the most useful one yourself (max 3 charts).',
     'If the input is a voice recording: line 1 is "HEARD: <exactly what the user said>" and nothing else (no reply, no tags on that line). Then a NEW line with your reply and any tags. Example:\nHEARD: open Facebook\nOpening Facebook.\n[[OPEN:https://www.facebook.com]]\nIf the recording has no clear speech, reply only "HEARD: (nothing)".',
     extra,
@@ -364,12 +367,21 @@ function renderChart(container, spec) {
   const btn = (label, fn) => { const b = document.createElement('button'); b.textContent = label; b.onclick = () => fn(b); bar.appendChild(b); };
   btn('Copy image', async (b) => { await window.pip.copyImage(exportPng(c)); b.textContent = 'Copied ✔'; setTimeout(() => (b.textContent = 'Copy image'), 1500); });
   btn('Save PNG', async () => { const f = await window.pip.savePng(exportPng(c), (c.title.replace(/[^\w -]+/g, '').trim() || 'chart') + '.png'); if (f) sys('Saved ' + f); });
+  const toExcel = async (b) => {
+    if (b) { b.disabled = true; b.textContent = 'Adding...'; }
+    const r = await window.pip.excelChart({ File: data.path || '', Title: c.title, Type: c.type, XLabel: spec.x, Labels: c.labels, Datasets: c.datasets.map((d) => ({ label: d.label, data: d.data })) });
+    if (b) { b.disabled = false; b.textContent = 'Add to Excel'; }
+    if (r.ok) { sys(`✔ Added sheet "${r.sheet}" with an Excel chart to ${r.book} (not saved yet - press Ctrl+S in Excel to keep it).`); mood('happy', 1500); }
+    else errMsg('Excel: ' + r.error);
+  };
+  btn('Add to Excel', toExcel);
   btn('Numbers', () => tbl.classList.toggle('hidden'));
   btn('Copy numbers', () => window.pip.copy([[spec.x, ...c.datasets.map((d) => d.label)].join('\t'), ...c.labels.map((l, i) => [l, ...c.datasets.map((d) => d.data[i])].join('\t'))].join('\n')));
   box.appendChild(bar); box.appendChild(tbl);
   container.appendChild(box);
   if (c.type === 'hbar') wrap.style.height = Math.max(200, c.labels.length * 18 + 60) + 'px';
   new Chart(cv, chartConfig(c, false));
+  if (spec.excel) toExcel(bar.querySelector('button:nth-child(3)'));
 }
 
 function addTools(el, text, extra) {
@@ -430,7 +442,7 @@ async function attachPath(p) {
   if (!r.ok) { errMsg(r.error); return false; }
   attachment = r;
   if (r.tables) {
-    data = { name: r.name, tables: r.tables, text: r.text };
+    data = { name: r.name, path: r.path, tables: r.tables, text: r.text };
     sys(`\u{1F4CA} Loaded ${r.name}: ` + r.tables.map((t) => `"${t.sheet}" ${t.rows.length} rows × ${t.columns.length} columns`).join(', '));
   }
   $('#attachName').textContent = '\u{1F4CE} ' + r.name;
@@ -562,6 +574,14 @@ function wavBase64(pcm, rate) {
 }
 
 // ---------------------------------------------------------------- settings
+const CHAR_NAMES = { pip: 'Pip', bears: 'Mocha & Milk' };
+function applyCharacter() {
+  const c = CHAR_NAMES[settings.character] ? settings.character : 'pip';
+  pipEl.dataset.char = c;
+  $('#head .who b').textContent = CHAR_NAMES[c];
+  pipEl.title = `${CHAR_NAMES[c]} - click to chat, drag to move, drop a file to summarize`;
+}
+
 function syncModeRows() {
   const direct = $('#sMode').value === 'direct';
   document.querySelectorAll('.directOnly').forEach((e) => e.classList.toggle('hidden', !direct));
@@ -577,6 +597,7 @@ async function openSettings() {
   $('#sKey').placeholder = settings.hasKey ? 'saved - leave empty to keep, or paste new key(s) to replace' : 'paste key - one per line to add several';
   showKeyStatus();
   $('#sAuto').checked = !!settings.autoStart;
+  $('#sChar').value = settings.character || 'pip';
   $('#sMode').value = settings.mode; $('#sRelay').value = settings.relayUrl; $('#sProxy').value = settings.proxy;
   $('#sModel').value = settings.model; $('#sLang').value = settings.replyLang; $('#sName').value = settings.userName;
   $('#sSpeak').checked = settings.speak; loadVoices();
@@ -612,10 +633,11 @@ $('#sSave').onclick = async () => {
     mode: $('#sMode').value, relayUrl: $('#sRelay').value.trim(), proxy: $('#sProxy').value.trim(),
     model: $('#sModel').value.trim() || 'gemini-2.5-flash', replyLang: $('#sLang').value,
     userName: $('#sName').value.trim(), speak: $('#sSpeak').checked, voice: $('#sVoice').value,
-    autoStart: $('#sAuto').checked,
+    autoStart: $('#sAuto').checked, character: $('#sChar').value,
   };
   if ($('#sKey').value.trim()) patch.apiKey = $('#sKey').value.trim();
   settings = await window.pip.setSettings(patch);
+  applyCharacter();
   $('#modelTag').textContent = settings.model + (settings.mode === 'relay' ? ' \u00B7 relay' : '');
   $('#settings').classList.add('hidden');
   sys('Settings saved.');
@@ -624,6 +646,7 @@ $('#sSave').onclick = async () => {
 // ---------------------------------------------------------------- start-up + gentle nudges
 (async () => {
   settings = await window.pip.getSettings();
+  applyCharacter();
   $('#modelTag').textContent = settings.model + (settings.mode === 'relay' ? ' \u00B7 relay' : '');
   loadVoices();
   const h = new Date().getHours();

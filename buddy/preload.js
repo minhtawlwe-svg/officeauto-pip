@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('pip', {
   testKeys: (text) => ipcRenderer.invoke('ai:test', text),
   openUrl: (url) => ipcRenderer.invoke('open:url', url),
   activeExcel: () => ipcRenderer.invoke('excel:active'),
+  excelChart: (chart) => ipcRenderer.invoke('excel:chart', chart),
   copyImage: (dataUrl) => ipcRenderer.invoke('clip:image', dataUrl),
   savePng: (dataUrl, name) => ipcRenderer.invoke('file:savePng', { dataUrl, name }),
   openApp: (name) => ipcRenderer.invoke('open:app', name),
