@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld('pip', {
   copyImage: (dataUrl) => ipcRenderer.invoke('clip:image', dataUrl),
   savePng: (dataUrl, name) => ipcRenderer.invoke('file:savePng', { dataUrl, name }),
   openApp: (name) => ipcRenderer.invoke('open:app', name),
+  closeApp: (name) => ipcRenderer.invoke('close:app', name),
   onSettingsChanged: (fn) => ipcRenderer.on('ui:settings', () => fn()),
   models: () => ipcRenderer.invoke('ai:models'),
   readFile: (p) => ipcRenderer.invoke('file:read', p),

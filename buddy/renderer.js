@@ -9,7 +9,7 @@ const TASK_LABELS = {
 const FOLDER_TASKS = ['ToPdf', 'Duplicates'];
 // programs Pip may open (names must match main.js APPS)
 const APPS = { excel: 1, word: 1, powerpoint: 1, outlook: 1, notepad: 1, calculator: 1, explorer: 1, edge: 1, chrome: 1, teams: 1, paint: 1, snip: 1 };
-const TAG_RE = /\[\[(RUN|OPEN|APP|READ|REMIND):[^\]]*\]\]/g;
+const TAG_RE = /\[\[(RUN|OPEN|APP|READ|REMIND|CLOSE):[^\]]*\]\]/g;
 const CHART_RE = /```(?:chart|json)\s*([\s\S]*?)```/g;
 const BLOCK_RE = /```(table|slides)\s*([\s\S]*?)```/g;
 
@@ -27,7 +27,9 @@ function mood(m, ms) {
   if (ms) moodTimer = setTimeout(() => mood('idle'), ms);
 }
 setInterval(() => {
-  if (!busy && !speechSynthesis.speaking && Date.now() - lastActive > 5 * 60 * 1000 && !pipEl.classList.contains('sleep')) mood('sleep');
+  if (!busy && !speechSynthesis.speaking && Date.now() - lastActive > 5 * 60 * 1000 && !pipEl.classList.contains('sleep')) {
+    mood('sleep'); charSound('sleep'); say(charStyle().sleepy, 6000);
+  }
 }, 15000);
 function wake() { lastActive = Date.now(); if (pipEl.classList.contains('sleep')) mood('happy', 1200); }
 
@@ -39,34 +41,47 @@ function say(text, ms = 6000) {          // small speech bubble when the panel i
 hint.onclick = () => { hint.classList.add('hidden'); openPanel(); };
 
 // ---------------------------------------------------------------- click-through + drag
+// Dragging uses pointer capture so the character keeps following the mouse even when the
+// cursor runs ahead of the window. It only counts as a click if the pointer barely moved.
 let overHit = null, drag = null;
 document.addEventListener('mousemove', (e) => {
-  if (drag) {
-    const dx = e.screenX - drag.sx, dy = e.screenY - drag.sy;
-    if (!drag.moved && Math.hypot(dx, dy) > 4) { drag.moved = true; pipEl.classList.add('drag'); }
-    if (drag.moved) window.pip.moveWindow(drag.wx + dx, drag.wy + dy);
-    return;
-  }
+  if (drag) return;
   const hit = !!e.target.closest('.hit');
   if (hit !== overHit) { overHit = hit; window.pip.ignoreMouse(!hit); }
   if (hit) wake();
 });
-pipEl.addEventListener('mousedown', async (e) => {
+pipEl.addEventListener('pointerdown', (e) => {
   if (e.button !== 0) return;
-  const [wx, wy] = await window.pip.windowPos();
-  drag = { sx: e.screenX, sy: e.screenY, wx, wy, moved: false };
+  drag = { sx: e.screenX, sy: e.screenY, wx: null, wy: null, moved: false, t: Date.now() };
+  pipEl.setPointerCapture(e.pointerId);
+  window.pip.ignoreMouse(false);
+  window.pip.windowPos().then(([wx, wy]) => { if (drag) { drag.wx = wx; drag.wy = wy; } });
 });
-document.addEventListener('mouseup', () => {
+pipEl.addEventListener('pointermove', (e) => {
   if (!drag) return;
-  const wasClick = !drag.moved;
+  const dx = e.screenX - drag.sx, dy = e.screenY - drag.sy;
+  if (!drag.moved && Math.hypot(dx, dy) > 4) { drag.moved = true; pipEl.classList.add('drag'); }
+  if (drag.moved && drag.wx !== null) window.pip.moveWindow(drag.wx + dx, drag.wy + dy);
+});
+let justDragged = false;
+function endDrag(e) {
+  if (!drag) return;
+  justDragged = drag.moved || Math.hypot(e.screenX - drag.sx, e.screenY - drag.sy) > 4;
   drag = null; pipEl.classList.remove('drag');
-  if (wasClick) togglePanel();
+  try { pipEl.releasePointerCapture(e.pointerId); } catch { }
+}
+pipEl.addEventListener('pointerup', endDrag);
+pipEl.addEventListener('pointercancel', (e) => { endDrag(e); justDragged = true; });
+// the browser's own click event = a real press+release on the character; a drag is ignored
+pipEl.addEventListener('click', () => {
+  if (justDragged) { justDragged = false; return; }
+  togglePanel();
 });
 // right-click the character = Settings
 pipEl.addEventListener('contextmenu', (e) => { e.preventDefault(); openPanel(); openSettings(); });
 
 function openPanel() { panel.classList.remove('hidden'); hint.classList.add('hidden'); setTimeout(() => input.focus(), 50); }
-function togglePanel() { if (panel.classList.contains('hidden')) { openPanel(); mood('happy', 1200); } else panel.classList.add('hidden'); }
+function togglePanel() { if (panel.classList.contains('hidden')) { openPanel(); mood('happy', 1200); charSound('hello'); } else panel.classList.add('hidden'); }
 $('#btnClose').onclick = () => panel.classList.add('hidden');
 window.pip.onOpen((what) => { openPanel(); if (what === 'settings') openSettings(); });
 
@@ -105,7 +120,7 @@ function addMsg(kind, html) {
   return el;
 }
 const sys = (t) => addMsg('sys', esc(t));
-const errMsg = (t) => { addMsg('err', esc(t)); mood('worried', 3000); };
+const errMsg = (t) => { addMsg('err', esc(t)); mood('worried', 3000); charSound('error'); };
 
 // ---------------------------------------------------------------- system prompt
 const localStamp = (d) => {
@@ -120,8 +135,8 @@ function systemPrompt(extra = '') {
   return [
     ({
       bears: 'You are Mocha & Milk, a sweet bear couple (Mocha the brown bear, Milk the white bear) who live above the Windows taskbar and help an office worker through the day. Speak warmly as "we", with the occasional cute touch, but stay useful.',
-      cat: 'You are Mango, a clever, slightly sassy orange cat who lives above the Windows taskbar and helps an office worker through the day. A tiny cat touch now and then (a "meow" or purr) is fine, but stay sharp and useful.',
-      dog: 'You are Kopi, a loyal, cheerful puppy who lives above the Windows taskbar and helps an office worker through the day. Be enthusiastic and encouraging (an occasional "woof!"), but stay practical and useful.',
+      cat: 'You are Mango, a clever, slightly sassy orange cat who lives above the Windows taskbar and helps an office worker through the day. You may add a cat touch ("meow", purr) in about one reply out of five - never at the start of every reply. Stay sharp and useful.',
+      dog: 'You are Kopi, a loyal, cheerful puppy who lives above the Windows taskbar and helps an office worker through the day. Be enthusiastic and encouraging; a "woof!" in about one reply out of five at most. Stay practical and useful.',
       capy: 'You are Capy, a famously calm capybara (with a yuzu on your head) who lives above the Windows taskbar and helps an office worker through the day. Stay relaxed and reassuring - nothing stresses you - while being clear and useful.',
       penguin: 'You are Pebble, a neat, organised little penguin in a red scarf who lives above the Windows taskbar and helps an office worker through the day. Be tidy, precise and friendly.',
     })[settings.character] || 'You are Pip, a friendly, upbeat little desktop assistant who lives above the Windows taskbar and helps an office worker get through the day.',
@@ -133,8 +148,9 @@ function systemPrompt(extra = '') {
       '. The user must click to confirm, so never claim the task already ran.',
     'To open a website, add a tag on its own line: [[OPEN:https://full-url]] (e.g. YouTube = [[OPEN:https://www.youtube.com]]; for a search use the site\'s search URL, e.g. [[OPEN:https://www.youtube.com/results?search_query=lofi+music]]). ' +
       `To open a program, add [[APP:name]] where name is one of: ${Object.keys(APPS).join(', ')}. ` +
-      'These open immediately, so say "Opening ..." in one short sentence.',
-    'Be honest about your limits: you cannot click inside other apps, read the screen, send emails or messages yourself, or control programs beyond opening them. If asked for something you cannot do, say so plainly and suggest the closest thing you can do. Never pretend you tried. Never start your reply with "Pip:".',
+      `To close a program, add [[CLOSE:name]] (same names except explorer) - it asks the program to close politely, so it may ask the user to save first. ` +
+      'These run immediately, so just say "Opening ..." / "Closing ..." in one short sentence.',
+    'Be honest about your limits: you cannot click inside other apps, read the screen, send emails or messages yourself, or control programs beyond opening and closing them. If asked for something you cannot do, say so plainly and suggest the closest thing you can do. Never pretend you tried. Never start your reply with "Pip:".',
     'TABLES: when the user wants a table, list or anything for Excel, output a fenced block ```table\n{"title":"Customers","columns":["Name","Phone","Amount"],"rows":[["Ko Aung","09...",150000]]}\n``` (numbers as numbers, dates YYYY-MM-DD). Pip shows it with an "Open in Excel" button. Small comparison tables in normal answers can be markdown tables.',
     'SLIDES: when the user wants a presentation/PowerPoint, output ```slides\n{"title":"...","subtitle":"...","slides":[{"title":"...","bullets":["..."],"notes":"..."}]}\n``` (5-10 slides, max 5 short bullets each). Write the slides in the language the user asked in (Burmese request = Burmese slides; keep each Burmese bullet short, under ~10 words). Pip builds a real PowerPoint file from it (Burmese gets the Myanmar Text font automatically).',
     `REMINDERS: you CAN set reminders. Add [[REMIND:YYYY-MM-DD HH:MM|short text]] on its own line, in local time (now: ${localStamp(now)}, ${now.toLocaleDateString('en-US', { weekday: 'long' })}). "in 30 minutes" = now + 30 min; "tomorrow morning" = tomorrow 09:00. Confirm in one short sentence.`,
@@ -147,7 +163,11 @@ function systemPrompt(extra = '') {
       'Optional "bucket":"day"|"month"|"year" when x holds dates (use line charts for trends over time). Optional "sort":"desc"|"asc"|"none". ' +
       'Add "excel":true when the user wants the chart in Excel too - Pip then adds a sheet with the numbers and a real Excel chart to their workbook. ' +
       'Pip computes the exact numbers from ALL rows and shows them under the chart, so NEVER state totals or numbers you did not see in the data - describe patterns instead. If the user asks for "a good chart", pick the most useful one yourself (max 3 charts).',
-    'If the input is a voice recording: line 1 is "HEARD: <exactly what the user said>" and nothing else (no reply, no tags on that line). Then a NEW line with your reply and any tags. Example:\nHEARD: open Facebook\nOpening Facebook.\n[[OPEN:https://www.facebook.com]]\nIf the recording has no clear speech, reply only "HEARD: (nothing)".',
+    'If the input is a voice recording: line 1 is "HEARD: <exactly what the user said>" and nothing else (no reply, no tags on that line). Then a NEW line with your reply and any tags. Example:\nHEARD: open Facebook\nOpening Facebook.\n[[OPEN:https://www.facebook.com]]\nAnswer ONLY this new recording - earlier messages were already answered, never repeat them. ' +
+      ({ my: 'The user speaks BURMESE (Myanmar language). Transcribe it in Myanmar script (Unicode), e.g. "HEARD: notepad ဖွင့်ပေး", even if the audio is not perfect - give your best guess. English words mixed in stay in English.',
+        en: 'The user speaks English.' }[settings.voiceLang] ||
+        'The user may speak Burmese (Myanmar language) or English, often mixed. Write Burmese speech in Myanmar script (Unicode). If the audio is unclear, give your best-guess transcript.') +
+      ' Never output timestamps. Reply "HEARD: (nothing)" ONLY for pure silence or noise with no voice at all.',
     extra,
   ].filter(Boolean).join('\n');
 }
@@ -190,13 +210,26 @@ async function askAI({ text = '', audio = null, display = null, extraSystem = ''
   const raw = res.text || streamText;
   // action tags count wherever the model put them - even on the HEARD line
   const tasks = [...raw.matchAll(/\[\[RUN:(\w+)\]\]/g)].map((m) => m[1]).filter((t) => TASK_LABELS[t]);
-  const opens = [...raw.matchAll(/\[\[(OPEN|APP):([^\]]+)\]\]/g)].map((m) => ({ kind: m[1], target: m[2].trim() }));
+  const opens = [...raw.matchAll(/\[\[(OPEN|APP|CLOSE):([^\]]+)\]\]/g)].map((m) => ({ kind: m[1], target: m[2].trim() }));
   let answer = raw, heard = '';
-  const hm = raw.match(/^\s*HEARD:\s*(.*)\n?/);
-  if (hm) { heard = hm[1].replace(TAG_RE, '').trim(); answer = raw.slice(hm[0].length); }
+  // if the model re-answered older turns, several HEARD lines appear: the LAST one is this recording
+  const hms = [...raw.matchAll(/^\s*HEARD:\s*(.*)$/gm)];
+  if (hms.length) {
+    const last = hms[hms.length - 1];
+    heard = last[1].replace(TAG_RE, '').trim();
+    answer = raw.slice(last.index + last[0].length);
+    if (/^[\d\s:.,\-၀-၉]*$/.test(heard)) heard = '';   // only timestamps / digits = no real speech
+  }
   answer = answer.replace(TAG_RE, '').replace(/(\*\*|__|`|")\s*\1/g, '').trim();   // drop empty **...** left where a tag was
   if (voiceEl) {
-    if ((!heard || /^\(nothing\)$/i.test(heard)) && !opens.length && !tasks.length) { voiceEl.remove(); target.remove(); say("I didn't catch that - try again?"); sys("Didn't hear any speech."); mood('worried', 2000); return null; }
+    const nothing = !heard || /^\(nothing\)$/i.test(heard);
+    if (nothing && !opens.length && !tasks.length && answer.trim().length < 3) {
+      voiceEl.remove(); target.remove(); say("I didn't catch that - try again?"); mood('worried', 2000);
+      const lv = lastVoice ? `mic level ${lastVoice.rms.toFixed(3)}, ${lastVoice.secs.toFixed(1)}s` : '';
+      sys(`Didn't catch any words (${lv}; AI heard: "${hms.length ? hms[hms.length - 1][1].trim() : raw.trim().slice(0, 60)}").\n` +
+        (lastVoice && lastVoice.rms < 0.02 ? 'Your voice is quiet - speak closer or pick another mic in Settings → Microphone.' : 'Try speaking a bit slower. For Burmese, set Settings → Voice language → Burmese.'));
+      return null;
+    }
     voiceEl.innerHTML = '&#127908; ' + esc(heard || '(voice)');
   }
   answer = answer.replace(/^\s*Pip:\s*/i, '');
@@ -214,8 +247,8 @@ async function askAI({ text = '', audio = null, display = null, extraSystem = ''
   const anything = opens.length || tasks.length || charts.length || wantsRead || blocks.table.length || blocks.slides.length || remTags.length;
   if (!answer) answer = anything ? '\u{1F44D}' : heard;   // model squeezed everything onto the HEARD line
   for (const o of opens.slice(0, 3)) {
-    const r = o.kind === 'OPEN' ? await window.pip.openUrl(o.target) : await window.pip.openApp(o.target);
-    if (r.ok) sys('↗ Opened ' + r.label); else errMsg(r.error);
+    const r = o.kind === 'OPEN' ? await window.pip.openUrl(o.target) : o.kind === 'CLOSE' ? await window.pip.closeApp(o.target) : await window.pip.openApp(o.target);
+    if (r.ok) sys((o.kind === 'CLOSE' ? '✖ Closed ' : '↗ Opened ') + r.label); else errMsg(r.error);
   }
   target.classList.remove('typing');
   target.innerHTML = md(answer);
@@ -224,6 +257,7 @@ async function askAI({ text = '', audio = null, display = null, extraSystem = ''
   for (const spec of blocks.slides.slice(0, 1)) renderSlides(target, spec, autoPpt);
   for (const r of remTags.slice(0, 5)) setReminderFromTag(r);
   addTools(target, answer, tools);
+  charSound('reply');
   if (copyResult && answer && answer !== '\u{1F44D}') {
     window.pip.copy(cleanForCopy(answer));
     sys('✔ Result copied - paste it with Ctrl+V');
@@ -462,7 +496,7 @@ function addTools(el, text, extra) {
     b.onclick = () => window.pip.mailDraft(subject[1].replace(/\*/g, ''), cleanForCopy(text.replace(/^\s*\**Subject:.*$/m, '')));
     bar.appendChild(b);
   }
-  if (text.length > 300) {
+  if (text.length > 700 || /^#{1,3}\s/m.test(text)) {   // documents only, not chatty replies
     const b = document.createElement('button'); b.textContent = 'Open in Word';
     b.onclick = async () => {
       b.disabled = true; b.textContent = 'Opening Word...';
@@ -499,7 +533,8 @@ function speak(text) {
   if (burmese && !voice) { mood('happy', 1500); return; }   // no Burmese voice installed on Windows: show text only
   const u = new SpeechSynthesisUtterance(plain);
   if (voice) u.voice = voice;
-  u.rate = 1.05;
+  if (!burmese) { u.pitch = charStyle().pitch; u.rate = charStyle().rate; }   // each character has its own voice
+  else u.rate = 1.0;
   u.onstart = () => mood('talk');
   u.onend = u.onerror = () => mood('idle');
   speechSynthesis.speak(u);
@@ -594,32 +629,60 @@ async function dailyReport() {
 $('#btnReport').onclick = dailyReport;
 
 // ---------------------------------------------------------------- voice input (push-to-talk)
-let rec = null;
+let rec = null, lastVoice = null;   // lastVoice = { rms, peak, secs } of the latest recording, for diagnostics
+
+// Noise suppression is off: it can cut parts of speech (and Burmese tones). Auto gain lifts quiet voices.
+function micConstraints() {
+  const c = { echoCancellation: true, noiseSuppression: false, autoGainControl: true, channelCount: 1 };
+  if (settings.micId) c.deviceId = { exact: settings.micId };
+  return { audio: c };
+}
+async function openMic() {
+  try { return await navigator.mediaDevices.getUserMedia(micConstraints()); }
+  catch (e) {   // chosen mic unplugged: fall back to the default one
+    if (settings.micId) return navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: true } });
+    throw e;
+  }
+}
+const levelBar = (rms) => '▁▂▃▄▅▆▇█'.slice(0, Math.max(1, Math.min(8, Math.round(rms * 120))));
+
 async function startRec() {
   if (rec || busy) return;
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    const stream = await openMic();
     const ctx = new AudioContext();
     const src = ctx.createMediaStreamSource(stream);
     const proc = ctx.createScriptProcessor(4096, 1, 1);
     const chunks = [];
-    proc.onaudioprocess = (e) => chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+    let live = 0;
+    proc.onaudioprocess = (e) => {
+      const d = e.inputBuffer.getChannelData(0);
+      chunks.push(new Float32Array(d));
+      let s = 0; for (let i = 0; i < d.length; i += 4) s += d[i] * d[i];
+      live = Math.sqrt(s / (d.length / 4));
+    };
     src.connect(proc); proc.connect(ctx.destination);
     speechSynthesis.cancel();
-    rec = { stream, ctx, proc, chunks, timer: setTimeout(stopRec, 30000) };
+    const meter = setInterval(() => say(`🎤 Listening ${levelBar(live)}  (click mic or Ctrl+Alt+V to stop)`, 30000), 150);
+    rec = { stream, ctx, proc, chunks, meter, timer: setTimeout(stopRec, 30000) };
     $('#btnMic').classList.add('rec'); mood('listen');
-    say('Listening... (click mic or Ctrl+Alt+V to stop)', 30000);
   } catch (err) { errMsg('Microphone not available: ' + err.message); }
 }
 async function stopRec() {
   if (!rec) return;
-  const { stream, ctx, proc, chunks, timer } = rec; rec = null;
-  clearTimeout(timer); proc.disconnect(); stream.getTracks().forEach((t) => t.stop());
+  const { stream, ctx, proc, chunks, timer, meter } = rec; rec = null;
+  clearTimeout(timer); clearInterval(meter); proc.disconnect(); stream.getTracks().forEach((t) => t.stop());
   $('#btnMic').classList.remove('rec'); hint.classList.add('hidden');
   const rate = ctx.sampleRate; ctx.close();
   const pcm = downsample(concat(chunks), rate, 16000);
   const rms = Math.sqrt(pcm.reduce((s, v) => s + v * v, 0) / (pcm.length || 1));
-  if (pcm.length < 16000 * 0.4 || rms < 0.004) { mood('worried', 1500); say("I didn't hear anything."); return; }   // skip silence: avoids hallucinated transcripts
+  const peak = pcm.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
+  lastVoice = { rms, peak, secs: pcm.length / 16000 };
+  if (pcm.length < 16000 * 0.4 || rms < 0.004) {   // skip silence: avoids hallucinated transcripts
+    mood('worried', 1500); openPanel();
+    sys(`I didn't hear anything (mic level ${rms.toFixed(3)}, ${lastVoice.secs.toFixed(1)}s). Speak closer, or pick another microphone in Settings → Microphone.`);
+    return;
+  }
   openPanel();
   askAI({ audio: wavBase64(pcm, 16000) });
 }
@@ -769,6 +832,10 @@ async function openSettings() {
   settings = await window.pip.getSettings();
   $('#sAuto').checked = !!settings.autoStart;
   $('#sChar').value = settings.character || 'pip';
+  $('#sVoiceLang').value = settings.voiceLang || 'auto';
+  loadMics();
+  $('#sSound').checked = settings.sound !== false;
+  $('#sVolume').value = settings.soundVolume ?? 0.6;
   $('#sFallback').checked = settings.fallback !== false;
   $('#sProxy').value = settings.proxy || '';
   $('#sLang').value = settings.replyLang; $('#sName').value = settings.userName;
@@ -778,6 +845,46 @@ async function openSettings() {
   renderProviders();
 }
 window.pip.onSettingsChanged(async () => { settings = await window.pip.getSettings(); });
+
+// ---- microphone picker + level test
+async function loadMics() {
+  const sel = $('#sMic');
+  let devs = [];
+  try { devs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'audioinput' && d.deviceId !== 'default' && d.deviceId !== 'communications'); } catch { }
+  sel.innerHTML = '<option value="">Windows default microphone</option>' +
+    devs.map((d, i) => `<option value="${esc(d.deviceId)}">${esc(d.label || 'Microphone ' + (i + 1))}</option>`).join('');
+  sel.value = devs.some((d) => d.deviceId === settings.micId) ? settings.micId : '';
+}
+$('#sMicTest').onclick = async () => {
+  const b = $('#sMicTest'), out = $('#micLevel');
+  b.disabled = true;
+  let stream;
+  try {
+    const chosen = $('#sMic').value, keep = settings.micId;
+    settings.micId = chosen;
+    stream = await openMic(); settings.micId = keep;
+    await loadMics();                       // device names appear once mic permission exists
+    $('#sMic').value = chosen;              // keep what the user picked (not saved until Save)
+    const ctx = new AudioContext(), an = ctx.createAnalyser(); an.fftSize = 2048;
+    ctx.createMediaStreamSource(stream).connect(an);
+    const buf = new Float32Array(an.fftSize); let best = 0;
+    const end = Date.now() + 4000;
+    await new Promise((resolve) => {
+      const tick = () => {
+        an.getFloatTimeDomainData(buf);
+        let s = 0; for (const v of buf) s += v * v;
+        const rms = Math.sqrt(s / buf.length); best = Math.max(best, rms);
+        out.textContent = `Say something... ${levelBar(rms)}  (${Math.ceil((end - Date.now()) / 1000)}s)`;
+        if (Date.now() < end) requestAnimationFrame(tick); else resolve();
+      };
+      tick();
+    });
+    ctx.close();
+    out.textContent = best < 0.01 ? `⚠ Very quiet (peak level ${best.toFixed(3)}). Pick another microphone or move closer.`
+      : best < 0.03 ? `Quiet but usable (peak level ${best.toFixed(3)}). Speak a little louder or closer.` : `✔ Good level (peak ${best.toFixed(3)}).`;
+  } catch (e) { out.textContent = 'Microphone error: ' + e.message; }
+  finally { if (stream) stream.getTracks().forEach((t) => t.stop()); b.disabled = false; }
+};
 $('#btnSettings').onclick = openSettings;
 $('#sCancel').onclick = () => $('#settings').classList.add('hidden');
 $('#sSave').onclick = async () => {
@@ -785,6 +892,8 @@ $('#sSave').onclick = async () => {
     proxy: $('#sProxy').value.trim(), fallback: $('#sFallback').checked, replyLang: $('#sLang').value,
     userName: $('#sName').value.trim(), speak: $('#sSpeak').checked, voice: $('#sVoice').value,
     autoStart: $('#sAuto').checked, character: $('#sChar').value,
+    sound: $('#sSound').checked, soundVolume: Number($('#sVolume').value),
+    voiceLang: $('#sVoiceLang').value, micId: $('#sMic').value,
   });
   applyCharacter(); showModelTag();
   $('#settings').classList.add('hidden');
@@ -802,14 +911,15 @@ $('#sSave').onclick = async () => {
   sys(`${greet}${settings.userName ? ', ' + settings.userName : ''}! Ask me anything, drop a file on me, or tap a button above.\nHotkeys: Ctrl+Alt+Space show/hide · Ctrl+Alt+V talk · Ctrl+Alt+C clipboard · Ctrl+Alt+S settings (or right-click me)`);
   setTimeout(() => {
     mood('happy', 1500);
-    say(settings.hasKey ? `${greet}! Click me if you need anything.` : `Hi! Click me, then \u2699 Settings \u2192 AI providers to add an API key (Gemini is free).`, 8000);
+    say(settings.hasKey ? `${charStyle().hi} ${greet}! Click me if you need anything.` : `${charStyle().hi} Click me, then \u2699 Settings \u2192 AI providers to add an API key (Gemini is free).`, 8000);
+    charSound('hello');
   }, 800);
   if (!settings.hasKey) setTimeout(() => { openPanel(); openSettings(); }, 1500);
 
   const nudged = {};
   setInterval(() => {
     const d = new Date(), key = d.toDateString(), hm = d.getHours() * 60 + d.getMinutes();
-    if (hm >= 17 * 60 + 15 && hm < 18 * 60 && !nudged[key + 'r']) { nudged[key + 'r'] = 1; mood('happy', 2000); say('Almost home time! Want me to write your daily report? Click me.', 20000); }
-    if (hm >= 12 * 60 && hm < 12 * 60 + 5 && !nudged[key + 'l']) { nudged[key + 'l'] = 1; say('Lunch time - stretch and drink some water! \u{1F35C}', 10000); }
+    if (hm >= 17 * 60 + 15 && hm < 18 * 60 && !nudged[key + 'r']) { nudged[key + 'r'] = 1; mood('happy', 2000); charSound('alert'); say(`${charStyle().hi} Almost home time! Want me to write your daily report? Click me.`, 20000); }
+    if (hm >= 12 * 60 && hm < 12 * 60 + 5 && !nudged[key + 'l']) { nudged[key + 'l'] = 1; charSound('hello'); say(`${charStyle().hi} Lunch time - stretch and drink some water! \u{1F35C}`, 10000); }
   }, 60000);
 })();

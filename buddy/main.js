@@ -20,6 +20,10 @@ const DEFAULTS = {
   voice: '',
   userName: '',
   character: 'pip',                                   // pip | bears
+  sound: true,                                         // character sounds (meow, woof...)
+  soundVolume: 0.6,
+  voiceLang: 'auto',                                   // auto | my | en - what the user speaks
+  micId: '',                                           // '' = Windows default microphone
   autoStart: true,                                     // launch Pip when Windows starts
 };
 let win, tray, settings;
@@ -345,6 +349,12 @@ const APPS = {
   paint: 'mspaint', snip: 'ms-screenclip:',
 };
 
+// programs Pip may close (process names). Explorer is left out on purpose: closing it kills the taskbar.
+const CLOSE_EXE = {
+  excel: 'EXCEL.EXE', word: 'WINWORD.EXE', powerpoint: 'POWERPNT.EXE', outlook: 'OUTLOOK.EXE', notepad: 'Notepad.exe',
+  calculator: 'CalculatorApp.exe', edge: 'msedge.exe', chrome: 'chrome.exe', teams: 'ms-teams.exe', paint: 'mspaint.exe', snip: 'SnippingTool.exe',
+};
+
 const ALLOWED_TASKS = ['Organize', 'Backup', 'CleanTemp', 'Morning', 'DailyNote', 'ToPdf', 'Duplicates'];
 
 function runTask(task, folder) {
@@ -465,6 +475,14 @@ function registerIpc() {
       { windowsHide: true, detached: true, stdio: 'ignore', windowsVerbatimArguments: true }).unref();
     return { ok: true, label: key };
   });
+  ipcMain.handle('close:app', (_e, name) => new Promise((resolve) => {
+    const key = String(name).toLowerCase().trim();
+    const exe = CLOSE_EXE[key];
+    if (!exe) return resolve({ ok: false, error: `I can't close "${name}". I can close: ${Object.keys(CLOSE_EXE).join(', ')}.` });
+    // no /F: Windows asks the program to close normally, so unsaved work still gets a "Save?" prompt
+    const tk = spawn(path.join(process.env.WINDIR, 'System32', 'taskkill.exe'), ['/IM', exe], { windowsHide: true });
+    tk.on('close', (code) => resolve(code === 0 ? { ok: true, label: key } : { ok: false, error: `${key} doesn't seem to be open.` }));
+  }));
   ipcMain.handle('excel:active', () => activeExcelPath());
   ipcMain.handle('excel:recent', () => recentExcelFiles());
   ipcMain.handle('excel:chart', (_e, chart) => new Promise((resolve) => {
@@ -493,6 +511,8 @@ function registerIpc() {
 }
 
 // ---------------------------------------------------------------- app lifecycle
+// let character sounds play for reminders even before the user clicked anything
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 if (!app.requestSingleInstanceLock()) app.quit();
 app.on('second-instance', () => { if (win) { win.show(); win.webContents.send('ui:open', 'chat'); } });
 

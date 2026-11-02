@@ -243,6 +243,7 @@ window.pip.onReminder((r) => {
   const msg = `⏰ ${r.late ? 'Missed reminder' : 'Reminder'}: ${r.text}`;
   addMsg('pip', md(`**${esc(msg)}**` + (r.late ? `\n(was due ${fmtWhen(r.at)})` : '')));
   mood('happy', 3000);
+  charSound('alert');
   say(msg, 30000);
   speak(msg.replace('⏰', ''));
   history.push({ role: 'model', text: `(Reminder shown to the user: ${r.text})` });
@@ -285,6 +286,7 @@ function toggleFocus() {
 
 function notify(text) {
   window.pip.showWindow();
+  charSound('alert');
   addMsg('pip', md('**' + esc(text) + '**'));
   say(text, 20000);
   speak(text);

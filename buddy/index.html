@@ -109,6 +109,10 @@
         <option value="penguin">Pebble (penguin)</option>
       </select>
     </label>
+    <label class="row"><input id="sSound" type="checkbox"> Character sounds (meow, woof, honk...)</label>
+    <label>Sound volume
+      <div class="inline"><input id="sVolume" type="range" min="0" max="1" step="0.05"><button id="sSoundTest" type="button">&#128264; Play</button></div>
+    </label>
     <label>Reply language
       <select id="sLang"><option value="auto">Same as I write</option><option value="en">English</option><option value="my">Burmese</option></select>
     </label>
@@ -116,6 +120,13 @@
     <label class="row"><input id="sSpeak" type="checkbox"> Read replies aloud</label>
     <label class="row"><input id="sAuto" type="checkbox"> Start Pip when Windows starts</label>
     <label>Voice <select id="sVoice"></select></label>
+    <label>Voice language (what you speak)
+      <select id="sVoiceLang"><option value="auto">Auto (Burmese or English)</option><option value="my">Burmese (မြန်မာ)</option><option value="en">English</option></select>
+    </label>
+    <label>Microphone
+      <div class="inline"><select id="sMic"></select><button id="sMicTest" type="button">Test mic</button></div>
+    </label>
+    <div id="micLevel" class="pNote"></div>
     <div class="btnRow"><button id="sCancel" type="button">Cancel</button><button id="sSave" type="button" class="primary">Save</button></div>
   </div>
 </section>
@@ -347,5 +358,6 @@
 <script src="node_modules/chart.js/dist/chart.umd.js"></script>
 <script src="renderer.js"></script>
 <script src="skills.js"></script>
+<script src="sounds.js"></script>
 </body>
 </html>
