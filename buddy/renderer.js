@@ -109,7 +109,7 @@ function systemPrompt(extra = '') {
       `To open a program, add [[APP:name]] where name is one of: ${Object.keys(APPS).join(', ')}. ` +
       'These open immediately, so say "Opening ..." in one short sentence.',
     'Be honest about your limits: you cannot click inside other apps, read the screen, send emails or messages yourself, or control programs beyond opening them. If asked for something you cannot do, say so plainly and suggest the closest thing you can do. Never pretend you tried.',
-    'If the input is a voice recording, put the exact transcript on the first line as "HEARD: <transcript>", then answer. If the recording has no clear speech, reply only "HEARD: (nothing)".',
+    'If the input is a voice recording: line 1 is "HEARD: <exactly what the user said>" and nothing else (no reply, no tags on that line). Then a NEW line with your reply and any tags. Example:\nHEARD: open Facebook\nOpening Facebook.\n[[OPEN:https://www.facebook.com]]\nIf the recording has no clear speech, reply only "HEARD: (nothing)".',
     extra,
   ].filter(Boolean).join('\n');
 }
@@ -147,17 +147,19 @@ async function askAI({ text = '', audio = null, display = null, extraSystem = ''
   const target = streamTarget; streamTarget = null;
 
   if (!res.ok) { target.remove(); if (voiceEl) voiceEl.remove(); errMsg(res.error); return null; }
-  let answer = res.text || streamText;
-  let heard = '';
-  const hm = answer.match(/^\s*HEARD:\s*(.*)\n?/);
-  if (hm) { heard = hm[1].trim(); answer = answer.slice(hm[0].length).trim(); }
-  if (voiceEl) {
-    if (!heard || /^\(nothing\)$/i.test(heard)) { voiceEl.remove(); target.remove(); say("I didn't catch that - try again?"); sys("Didn't hear any speech."); mood('worried', 2000); return null; }
-    voiceEl.innerHTML = '&#127908; ' + esc(heard);
-  }
-  const tasks = [...answer.matchAll(/\[\[RUN:(\w+)\]\]/g)].map((m) => m[1]).filter((t) => TASK_LABELS[t]);
-  const opens = [...answer.matchAll(/\[\[(OPEN|APP):([^\]]+)\]\]/g)].map((m) => ({ kind: m[1], target: m[2].trim() }));
+  const raw = res.text || streamText;
+  // action tags count wherever the model put them - even on the HEARD line
+  const tasks = [...raw.matchAll(/\[\[RUN:(\w+)\]\]/g)].map((m) => m[1]).filter((t) => TASK_LABELS[t]);
+  const opens = [...raw.matchAll(/\[\[(OPEN|APP):([^\]]+)\]\]/g)].map((m) => ({ kind: m[1], target: m[2].trim() }));
+  let answer = raw, heard = '';
+  const hm = raw.match(/^\s*HEARD:\s*(.*)\n?/);
+  if (hm) { heard = hm[1].replace(TAG_RE, '').trim(); answer = raw.slice(hm[0].length); }
   answer = answer.replace(TAG_RE, '').trim();
+  if (voiceEl) {
+    if ((!heard || /^\(nothing\)$/i.test(heard)) && !opens.length && !tasks.length) { voiceEl.remove(); target.remove(); say("I didn't catch that - try again?"); sys("Didn't hear any speech."); mood('worried', 2000); return null; }
+    voiceEl.innerHTML = '&#127908; ' + esc(heard || '(voice)');
+  }
+  if (!answer) answer = opens.length || tasks.length ? '\u{1F44D}' : heard;   // model squeezed everything onto the HEARD line
   for (const o of opens.slice(0, 3)) {
     const r = o.kind === 'OPEN' ? await window.pip.openUrl(o.target) : await window.pip.openApp(o.target);
     if (r.ok) sys('↗ Opened ' + r.label); else errMsg(r.error);
