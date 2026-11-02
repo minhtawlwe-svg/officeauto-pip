@@ -33,6 +33,7 @@ Pip starts automatically with Windows from now on. To turn that off, untick *Sta
 | **✨ Daily report** | Turns today's note into a report email for your manager (Copy / Email draft) |
 | 🎤 or **Ctrl+Alt+V** | Talk to Pip; press again to send. Pip reads its answer aloud |
 | **Ctrl+Alt+Space** | Show / hide Pip |
+| Say "open YouTube" / "search YouTube for lofi music" / "open Excel" | Opens the website or program right away (Excel, Word, PowerPoint, Outlook, Notepad, Calculator, Explorer, Edge, Chrome, Teams, Paint, Snip) |
 | Say "organize my downloads" | Pip shows a **▶ Run** button. Nothing runs until you click it |
 | Tray icon (right-click) | Settings / API keys, Start with Windows, Reset position, Quit |
 

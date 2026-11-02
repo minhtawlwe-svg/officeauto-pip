@@ -7,6 +7,9 @@ const TASK_LABELS = {
   Morning: 'Morning start', DailyNote: "Open today's note", ToPdf: 'Convert folder to PDF', Duplicates: 'Find duplicate files',
 };
 const FOLDER_TASKS = ['ToPdf', 'Duplicates'];
+// programs Pip may open (names must match main.js APPS)
+const APPS = { excel: 1, word: 1, powerpoint: 1, outlook: 1, notepad: 1, calculator: 1, explorer: 1, edge: 1, chrome: 1, teams: 1, paint: 1, snip: 1 };
+const TAG_RE = /\[\[(RUN|OPEN|APP):[^\]]*\]\]/g;
 
 let settings = {}, history = [], attachment = null, busy = false, reqSeq = 0;
 let streamTarget = null, streamText = '';
@@ -102,6 +105,10 @@ function systemPrompt(extra = '') {
     'You can also trigger these automations on the user\'s PC. When the user clearly asks for one, add ONE tag on its own line: ' +
       Object.entries(TASK_LABELS).map(([k, v]) => `[[RUN:${k}]] (${v})`).join(', ') +
       '. The user must click to confirm, so never claim the task already ran.',
+    'To open a website, add a tag on its own line: [[OPEN:https://full-url]] (e.g. YouTube = [[OPEN:https://www.youtube.com]]; for a search use the site\'s search URL, e.g. [[OPEN:https://www.youtube.com/results?search_query=lofi+music]]). ' +
+      `To open a program, add [[APP:name]] where name is one of: ${Object.keys(APPS).join(', ')}. ` +
+      'These open immediately, so say "Opening ..." in one short sentence.',
+    'Be honest about your limits: you cannot click inside other apps, read the screen, send emails or messages yourself, or control programs beyond opening them. If asked for something you cannot do, say so plainly and suggest the closest thing you can do. Never pretend you tried.',
     'If the input is a voice recording, put the exact transcript on the first line as "HEARD: <transcript>", then answer. If the recording has no clear speech, reply only "HEARD: (nothing)".',
     extra,
   ].filter(Boolean).join('\n');
@@ -111,7 +118,7 @@ function systemPrompt(extra = '') {
 window.pip.onChunk(({ id, text }) => {
   if (!streamTarget || id !== reqSeq) return;
   streamText += text;
-  const shown = streamText.replace(/^HEARD:.*\n?/, '').replace(/\[\[RUN:\w+\]\]/g, '');
+  const shown = streamText.replace(/^HEARD:.*\n?/, '').replace(TAG_RE, '');
   streamTarget.classList.remove('typing');
   streamTarget.innerHTML = md(shown);
   log.scrollTop = log.scrollHeight;
@@ -149,7 +156,12 @@ async function askAI({ text = '', audio = null, display = null, extraSystem = ''
     voiceEl.innerHTML = '&#127908; ' + esc(heard);
   }
   const tasks = [...answer.matchAll(/\[\[RUN:(\w+)\]\]/g)].map((m) => m[1]).filter((t) => TASK_LABELS[t]);
-  answer = answer.replace(/\[\[RUN:\w+\]\]/g, '').trim();
+  const opens = [...answer.matchAll(/\[\[(OPEN|APP):([^\]]+)\]\]/g)].map((m) => ({ kind: m[1], target: m[2].trim() }));
+  answer = answer.replace(TAG_RE, '').trim();
+  for (const o of opens.slice(0, 3)) {
+    const r = o.kind === 'OPEN' ? await window.pip.openUrl(o.target) : await window.pip.openApp(o.target);
+    if (r.ok) sys('↗ Opened ' + r.label); else errMsg(r.error);
+  }
   target.classList.remove('typing');
   target.innerHTML = md(answer);
   addTools(target, answer, tools);

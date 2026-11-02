@@ -278,6 +278,13 @@ function todayStamp() {
   return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
 }
 
+// programs Pip may open on request (fixed list - the AI never runs arbitrary commands)
+const APPS = {
+  excel: 'excel', word: 'winword', powerpoint: 'powerpnt', outlook: 'outlook', notepad: 'notepad',
+  calculator: 'calc', explorer: 'explorer', edge: 'msedge', chrome: 'chrome', teams: 'ms-teams:',
+  paint: 'mspaint', snip: 'ms-screenclip:',
+};
+
 const ALLOWED_TASKS = ['Organize', 'Backup', 'CleanTemp', 'Morning', 'DailyNote', 'ToPdf', 'Duplicates'];
 
 function runTask(task, folder) {
@@ -320,6 +327,22 @@ function registerIpc() {
   ipcMain.handle('note:today', () => {
     const p = path.join(expand(officeConfig().NotesFolder || '%USERPROFILE%\\Documents\\DailyNotes'), todayStamp() + '.md');
     return fs.existsSync(p) ? { ok: true, path: p, text: fs.readFileSync(p, 'utf8') } : { ok: false, path: p };
+  });
+  ipcMain.handle('open:url', async (_e, url) => {
+    let u;
+    try { u = new URL(url); } catch { return { ok: false, error: 'Bad link: ' + url }; }
+    if (!['https:', 'http:'].includes(u.protocol)) return { ok: false, error: 'Only web links can be opened.' };
+    await shell.openExternal(u.href);
+    return { ok: true, label: u.hostname.replace(/^www\./, '') };
+  });
+  ipcMain.handle('open:app', (_e, name) => {
+    const key = String(name).toLowerCase().trim();
+    const target = APPS[key];
+    if (!target) return { ok: false, error: `I can't open "${name}". I can open: ${Object.keys(APPS).join(', ')}.` };
+    // "start" resolves App Paths (excel, winword...) and URI schemes (ms-teams:, ms-screenclip:)
+    spawn('cmd.exe', ['/d', '/s', '/c', `start "" ${target}`],
+      { windowsHide: true, detached: true, stdio: 'ignore', windowsVerbatimArguments: true }).unref();
+    return { ok: true, label: key };
   });
   ipcMain.handle('clip:write', (_e, t) => { clipboard.writeText(t); return true; });
   ipcMain.handle('mail:draft', (_e, { subject, body }) =>

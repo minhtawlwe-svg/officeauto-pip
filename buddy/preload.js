@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld('pip', {
   setSettings: (patch) => ipcRenderer.invoke('settings:set', patch),
   ask: (req) => ipcRenderer.invoke('ai:ask', req),
   testKeys: (text) => ipcRenderer.invoke('ai:test', text),
+  openUrl: (url) => ipcRenderer.invoke('open:url', url),
+  openApp: (name) => ipcRenderer.invoke('open:app', name),
   onSettingsChanged: (fn) => ipcRenderer.on('ui:settings', () => fn()),
   models: () => ipcRenderer.invoke('ai:models'),
   readFile: (p) => ipcRenderer.invoke('file:read', p),
