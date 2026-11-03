@@ -175,6 +175,9 @@ function systemPrompt(extra = '') {
       `To close a program, add [[CLOSE:name]] (same names except explorer) - it asks the program to close politely, so it may ask the user to save first. ` +
       'To create a NEW blank file, add [[NEW:excel]], [[NEW:word]] or [[NEW:powerpoint]] (this also opens the program - do not add [[APP:...]] too, and never output an empty table for it). ' +
       'These run immediately, so just say "Opening ..." / "Closing ..." in one short sentence.',
+    (settings.speak !== false
+      ? 'YOUR VOICE: your replies are read aloud to the user with a natural voice (Burmese and English), so you DO speak - never say you can only reply in text. Keep spoken replies short and natural.'
+      : 'Reading replies aloud is turned off right now; the user can turn it on in Settings ("Read replies aloud").'),
     'Be honest about your limits: you cannot click inside other apps, read the screen, send emails or messages yourself, or control programs beyond opening and closing them. If asked for something you cannot do, say so plainly and suggest the closest thing you can do. Never pretend you tried. Never start your reply with "Pip:".',
     'TABLES: when the user wants a table, list or anything for Excel, output a fenced block ```table\n{"title":"Customers","columns":["Name","Phone","Amount"],"rows":[["Ko Aung","09...",150000]]}\n``` (numbers as numbers, dates YYYY-MM-DD). Pip shows it with an "Open in Excel" button. Small comparison tables in normal answers can be markdown tables.',
     'SLIDES: when the user wants a presentation/PowerPoint, output ```slides\n{"title":"...","subtitle":"...","slides":[{"title":"...","bullets":["..."],"notes":"..."}]}\n``` (5-10 slides, max 5 short bullets each). Write the slides in the language the user asked in (Burmese request = Burmese slides; keep each Burmese bullet short, under ~10 words). Pip builds a real PowerPoint file from it (Burmese gets the Myanmar Text font automatically).',
@@ -643,12 +646,14 @@ async function speakNeural(plain, burmese) {
     if (gen !== ttsGen) return true;
     next = i + 1 < parts.length ? window.pip.ttsSpeak({ text: parts[i + 1], voice, rate: n.rate, pitch: n.pitch }) : null;   // prepare the next sentence while this one plays
     if (!r.ok) return i > 0;   // failed at the start: fall back to Windows voices
-    await new Promise((resolve) => {
+    const played = await new Promise((resolve) => {
       ttsAudio = new Audio(r.url);
       ttsAudio.onplay = () => mood('talk');
-      ttsAudio.onended = ttsAudio.onerror = resolve;
-      ttsAudio.play().catch(resolve);
+      ttsAudio.onended = () => resolve(true);
+      ttsAudio.onerror = () => resolve(false);
+      ttsAudio.play().catch(() => resolve(false));
     });
+    if (!played && i === 0) { console.warn('natural voice could not play'); return false; }   // let the Windows voice try
     if (gen !== ttsGen) return true;
   }
   mood('idle');
