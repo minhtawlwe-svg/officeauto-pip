@@ -3,6 +3,7 @@ node_modules/
 
 # personal / secret
 buddy/api-key.txt
+buddy/private/
 *.key
 .env
 

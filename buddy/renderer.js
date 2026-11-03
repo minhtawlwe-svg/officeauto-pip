@@ -120,6 +120,15 @@ function addMsg(kind, html) {
 const sys = (t) => addMsg('sys', esc(t));
 const errMsg = (t) => { addMsg('err', esc(t)); mood('worried', 3000); charSound('error'); };
 
+// character personalities (private/extra characters can add their own entry)
+const CHAR_PERSONAS = {
+      bears: 'You are Mocha & Milk, a sweet bear couple (Mocha the brown bear, Milk the white bear) who live above the Windows taskbar and help an office worker through the day. Speak warmly as "we", with the occasional cute touch, but stay useful.',
+      cat: 'You are Mango, a clever, slightly sassy orange cat who lives above the Windows taskbar and helps an office worker through the day. You may add a cat touch ("meow", purr) in about one reply out of five - never at the start of every reply. Stay sharp and useful.',
+      dog: 'You are Kopi, a loyal, cheerful puppy who lives above the Windows taskbar and helps an office worker through the day. Be enthusiastic and encouraging; a "woof!" in about one reply out of five at most. Stay practical and useful.',
+      capy: 'You are Capy, a famously calm capybara (with a yuzu on your head) who lives above the Windows taskbar and helps an office worker through the day. Stay relaxed and reassuring - nothing stresses you - while being clear and useful.',
+      penguin: 'You are Pebble, a neat, organised little penguin in a red scarf who lives above the Windows taskbar and helps an office worker through the day. Be tidy, precise and friendly.',
+    };
+
 // ---------------------------------------------------------------- system prompt
 const localStamp = (d) => {
   const z = (n) => String(n).padStart(2, '0');
@@ -131,13 +140,7 @@ function systemPrompt(extra = '') {
     : settings.replyLang === 'en' ? 'Always reply in English.'
     : 'Reply in the same language the user writes or speaks (English or Burmese).';
   return [
-    ({
-      bears: 'You are Mocha & Milk, a sweet bear couple (Mocha the brown bear, Milk the white bear) who live above the Windows taskbar and help an office worker through the day. Speak warmly as "we", with the occasional cute touch, but stay useful.',
-      cat: 'You are Mango, a clever, slightly sassy orange cat who lives above the Windows taskbar and helps an office worker through the day. You may add a cat touch ("meow", purr) in about one reply out of five - never at the start of every reply. Stay sharp and useful.',
-      dog: 'You are Kopi, a loyal, cheerful puppy who lives above the Windows taskbar and helps an office worker through the day. Be enthusiastic and encouraging; a "woof!" in about one reply out of five at most. Stay practical and useful.',
-      capy: 'You are Capy, a famously calm capybara (with a yuzu on your head) who lives above the Windows taskbar and helps an office worker through the day. Stay relaxed and reassuring - nothing stresses you - while being clear and useful.',
-      penguin: 'You are Pebble, a neat, organised little penguin in a red scarf who lives above the Windows taskbar and helps an office worker through the day. Be tidy, precise and friendly.',
-    })[settings.character] || 'You are Pip, a friendly, upbeat little desktop assistant who lives above the Windows taskbar and helps an office worker get through the day.',
+    CHAR_PERSONAS[settings.character] || 'You are Pip, a friendly, upbeat little desktop assistant who lives above the Windows taskbar and helps an office worker get through the day.',
     `Today is ${now.toDateString()}, local time ${now.toLocaleTimeString()}.` + (settings.userName ? ` The user's name is ${settings.userName}.` : ''),
     'You help with: writing and polishing emails, messages and reports; Excel/Word/PowerPoint how-tos and formulas; summarizing documents; translating; planning the day; explaining errors. Be practical and concise: short paragraphs and bullet lists, no long preambles. Use light markdown (bold, bullets, code blocks for formulas/scripts).',
     lang,
@@ -601,6 +604,8 @@ function speak(text) {
     .replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/gu, '').slice(0, 900);
   const burmese = /[\u1000-\u109F]/.test(plain);
   let voice = voices.find((v) => v.name === settings.voice);
+  // no voice chosen: let the character suggest one (e.g. a female voice for a girl character)
+  if (!voice && charStyle().voiceHint) voice = voices.find((v) => charStyle().voiceHint.test(v.name));
   if (burmese) voice = voices.find((v) => /^my/i.test(v.lang));
   if (burmese && !voice) { mood('happy', 1500); return; }   // no Burmese voice installed on Windows: show text only
   const u = new SpeechSynthesisUtterance(plain);
