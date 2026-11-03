@@ -22,6 +22,7 @@ const DEFAULTS = {
   character: 'pip',                                   // pip | bears
   sound: true,                                         // character sounds (meow, woof...)
   soundVolume: 0.6,
+  naturalVoice: true,                                  // Microsoft neural voices (incl. Burmese) when edge-tts is installed
   voiceLang: 'auto',                                   // auto | my | en - what the user speaks
   micId: '',                                           // '' = Windows default microphone
   autoStart: true,                                     // launch Pip when Windows starts
@@ -119,7 +120,8 @@ function applyProxy() {
 // ---------------------------------------------------------------- window
 function createWindow() {
   const { workArea } = screen.getPrimaryDisplay();
-  const W = 420, H = Math.min(700, workArea.height - 20);
+  const saved = settings.winSize || {};   // the user can resize the chat; remember it
+  const W = clampW(saved.w || 420), H = clampH(saved.h || Math.min(700, workArea.height - 20));
   win = new BrowserWindow({
     width: W, height: H,
     x: workArea.x + workArea.width - W - 20, y: workArea.y + workArea.height - H,
@@ -170,6 +172,18 @@ function toggle() {
   else { win.show(); win.webContents.send('ui:open', 'chat'); }
 }
 
+// window size limits (the chat panel fills the window above the character)
+const MIN_W = 360, MIN_H = 460;
+const clampW = (w) => Math.round(Math.max(MIN_W, Math.min(w, screen.getPrimaryDisplay().workArea.width - 20)));
+const clampH = (h) => Math.round(Math.max(MIN_H, Math.min(h, screen.getPrimaryDisplay().workArea.height - 10)));
+
+// resize keeping the bottom-right corner (where the character stands) in place
+function setSizeAnchored(w, h) {
+  const [x, y] = win.getPosition(), [ow, oh] = win.getSize();
+  w = clampW(w); h = clampH(h);
+  win.setBounds({ x: x + ow - w, y: y + oh - h, width: w, height: h });
+}
+
 function resetPosition() {
   const { workArea } = screen.getPrimaryDisplay();
   const [W, H] = win.getSize();
@@ -178,9 +192,56 @@ function resetPosition() {
 
 // ---------------------------------------------------------------- AI (see providers.js)
 // Streams the answer text to the renderer via 'ai:chunk'.
-function ask(req) {
+async function ask(req) {
   const send = (t) => win && win.webContents.send('ai:chunk', { id: req.id, text: t });
-  return AI.ask(providers, settings.activeProvider, settings.fallback, req, send);
+  const t0 = Date.now();
+  try {
+    const r = await AI.ask(providers, settings.activeProvider, settings.fallback, req, send);
+    logReply({ ok: true, provider: r.provider, voice: !!req.audio, ms: Date.now() - t0, chars: (r.text || '').length, end: (r.text || '').trim().slice(-40) });
+    return r;
+  } catch (e) {
+    logReply({ ok: false, voice: !!req.audio, ms: Date.now() - t0, error: String(e.message).slice(0, 300) });
+    throw e;
+  }
+}
+
+// diagnostics: one line per AI reply in %APPDATA%\officeauto-buddy\ai-log.jsonl (last 200 kept)
+function logReply(entry) {
+  try {
+    const f = path.join(app.getPath('userData'), 'ai-log.jsonl');
+    const lines = fs.existsSync(f) ? fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).slice(-199) : [];
+    lines.push(JSON.stringify({ t: new Date().toISOString(), ...entry }));
+    fs.writeFileSync(f, lines.join('\n') + '\n');
+  } catch { }
+}
+
+// ---------------------------------------------------------------- natural voices (Microsoft neural TTS via edge-tts)
+// Gives Burmese a real voice (Windows has none). Needs Python + `pip install edge-tts`; otherwise Pip uses Windows voices.
+let ttsOk = null;
+function ttsAvailable() {
+  if (ttsOk !== null) return Promise.resolve(ttsOk);
+  return new Promise((resolve) => {
+    const p = spawn('python', ['-m', 'edge_tts', '--version'], { windowsHide: true });
+    p.on('error', () => resolve(ttsOk = false));
+    p.on('close', (code) => resolve(ttsOk = code === 0));
+  });
+}
+function ttsSpeak({ text, voice, rate, pitch }) {
+  return new Promise((resolve) => {
+    if (!/^[a-z]{2}-[A-Z]{2}-[A-Za-z]+Neural$/.test(voice || '')) return resolve({ ok: false, error: 'bad voice' });
+    const r = /^[+-]\d{1,2}%$/.test(rate || '') ? rate : '+0%', pt = /^[+-]\d{1,2}Hz$/.test(pitch || '') ? pitch : '+0Hz';
+    const out = path.join(app.getPath('temp'), `pip-tts-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.mp3`);
+    const p = spawn('python', ['-m', 'edge_tts', '--voice', voice, `--rate=${r}`, `--pitch=${pt}`, '--text', String(text).slice(0, 1200), '--write-media', out], { windowsHide: true });
+    let err = '';
+    p.stderr.on('data', (d) => (err += d));
+    p.on('error', (e) => resolve({ ok: false, error: e.message }));
+    p.on('close', () => {
+      try {
+        const data = fs.readFileSync(out).toString('base64'); fs.rmSync(out, { force: true });
+        resolve({ ok: true, url: 'data:audio/mpeg;base64,' + data });
+      } catch { resolve({ ok: false, error: err.slice(0, 200) || 'no audio' }); }
+    });
+  });
 }
 
 // ---------------------------------------------------------------- files -> Gemini parts
@@ -413,6 +474,50 @@ function checkReminders() {
 function registerIpc() {
   ipcMain.on('win:ignore', (_e, ignore) => win.setIgnoreMouseEvents(ignore, { forward: true }));
   ipcMain.on('win:move', (_e, { x, y }) => win.setPosition(Math.round(x), Math.round(y)));
+  // drag the window by following the real OS cursor (renderer coordinates lag while the window moves)
+  let drag = null;
+  ipcMain.on('drag:start', () => {
+    const c = screen.getCursorScreenPoint(), [wx, wy] = win.getPosition();
+    if (drag) clearInterval(drag.timer);
+    drag = { cx: c.x, cy: c.y, wx, wy, moved: false };
+    drag.timer = setInterval(() => {
+      const p = screen.getCursorScreenPoint(), dx = p.x - drag.cx, dy = p.y - drag.cy;
+      if (!drag.moved && Math.hypot(dx, dy) > 4) { drag.moved = true; win.webContents.send('drag:moved'); }
+      if (drag.moved) win.setPosition(drag.wx + dx, drag.wy + dy);
+    }, 12);
+  });
+  // free resize from the grip at the panel's top-left corner, following the real cursor
+  let rz = null;
+  ipcMain.on('resize:start', () => {
+    const c = screen.getCursorScreenPoint(), [w, h] = win.getSize();
+    if (rz) clearInterval(rz.timer);
+    rz = { cx: c.x, cy: c.y, w, h };
+    rz.timer = setInterval(() => {
+      const p = screen.getCursorScreenPoint();
+      setSizeAnchored(rz.w - (p.x - rz.cx), rz.h - (p.y - rz.cy));
+    }, 16);
+  });
+  ipcMain.handle('resize:end', () => {
+    if (rz) { clearInterval(rz.timer); rz = null; }
+    const [w, h] = win.getSize();
+    saveSettings({ winSize: { w, h } });
+    return { w, h };
+  });
+  // expand / restore button: big size <-> the user's normal size
+  ipcMain.handle('win:expand', (_e, on) => {
+    const wa = screen.getPrimaryDisplay().workArea;
+    if (on) setSizeAnchored(Math.min(820, wa.width - 40), wa.height - 10);
+    else setSizeAnchored((settings.winSize || {}).w || 420, (settings.winSize || {}).h || Math.min(700, wa.height - 20));
+    return win.getSize();
+  });
+  ipcMain.handle('drag:end', () => {
+    if (!drag) return { moved: false };
+    clearInterval(drag.timer);
+    const p = screen.getCursorScreenPoint();
+    const moved = drag.moved || Math.hypot(p.x - drag.cx, p.y - drag.cy) > 4;
+    drag = null;
+    return { moved };
+  });
   ipcMain.on('win:hide', () => win.hide());
   ipcMain.on('win:show', () => { if (!win.isVisible()) win.showInactive(); });
   ipcMain.handle('office:make', (_e, { kind, payload }) => runOfficeScript('office-make.ps1', ['-Kind', kind], payload));
@@ -483,6 +588,8 @@ function registerIpc() {
     const tk = spawn(path.join(process.env.WINDIR, 'System32', 'taskkill.exe'), ['/IM', exe], { windowsHide: true });
     tk.on('close', (code) => resolve(code === 0 ? { ok: true, label: key } : { ok: false, error: `${key} doesn't seem to be open.` }));
   }));
+  ipcMain.handle('tts:available', () => ttsAvailable());
+  ipcMain.handle('tts:speak', (_e, req) => ttsSpeak(req));
   ipcMain.handle('excel:active', () => activeExcelPath());
   ipcMain.handle('excel:recent', () => recentExcelFiles());
   ipcMain.handle('excel:chart', (_e, chart) => new Promise((resolve) => {

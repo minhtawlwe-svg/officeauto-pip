@@ -119,6 +119,16 @@ const CHAR_STYLE = {
   capy: { pitch: 0.8, rate: 0.88, hi: '~chill~', pet: 'Mmm... very relaxing. 🍊', sleepy: 'Capy is soaking in a hot spring... zzz' },
   penguin: { pitch: 1.35, rate: 1.08, hi: 'Squeak!', pet: 'Honk! Thank you kindly. 🐧', sleepy: 'Pebble is sleeping on the ice... zzz' },
 };
+// natural (neural) voices per character: Burmese voice, English voice, pitch / speed tweaks
+const NEURAL = {
+  pip: { my: 'my-MM-ThihaNeural', en: 'en-US-GuyNeural', pitch: '+8Hz', rate: '+5%' },
+  bears: { my: 'my-MM-NilarNeural', en: 'en-US-EmmaNeural', pitch: '+4Hz', rate: '+0%' },
+  cat: { my: 'my-MM-NilarNeural', en: 'en-US-AnaNeural', pitch: '+12Hz', rate: '+5%' },
+  dog: { my: 'my-MM-ThihaNeural', en: 'en-US-AndrewNeural', pitch: '+10Hz', rate: '+10%' },
+  capy: { my: 'my-MM-ThihaNeural', en: 'en-US-BrianNeural', pitch: '-4Hz', rate: '-12%' },
+  penguin: { my: 'my-MM-NilarNeural', en: 'en-US-JennyNeural', pitch: '+10Hz', rate: '+5%' },
+};
+for (const [id, n] of Object.entries(NEURAL)) if (CHAR_STYLE[id]) CHAR_STYLE[id].neural = n;
 const charStyle = () => CHAR_STYLE[settings.character] || CHAR_STYLE.pip;
 
 // Settings: preview the chosen character's sound with the chosen volume (before saving)

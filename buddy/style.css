@@ -26,6 +26,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #panel::after { content: ""; position: absolute; right: 120px; bottom: -9px; width: 16px; height: 16px;
   background: var(--bg); border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); transform: rotate(45deg); }
 @keyframes pop { from { transform: scale(.94) translateY(8px); opacity: 0; } }
+#grip { position: absolute; left: 0; top: 0; width: 18px; height: 18px; cursor: nwse-resize; z-index: 6;
+  background: linear-gradient(135deg, var(--accent) 0 3px, transparent 3px 6px, var(--accent) 6px 8px, transparent 8px); opacity: .55; border-top-left-radius: 16px; }
+#grip:hover { opacity: 1; }
+#head { user-select: none; }
 #head { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px 6px 14px;
   background: linear-gradient(90deg, rgba(139,124,255,.25), rgba(20,168,180,.18)); border-bottom: 1px solid var(--line); }
 .who b { font-size: 14px; }

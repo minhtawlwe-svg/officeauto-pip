@@ -14,9 +14,12 @@
     <div class="who"><b>Pip</b> <span id="modelTag">gemini</span></div>
     <div class="headBtns">
       <button id="btnSettings" title="Settings">&#9881;</button>
+      <button id="btnMin" title="Minimize - keep the chat, show only the character">&#8212;</button>
+      <button id="btnExpand" title="Expand / restore (or double-click the title bar)">&#10530;</button>
       <button id="btnClose" title="Close (Ctrl+Alt+Space)">&#10005;</button>
     </div>
   </header>
+  <div id="grip" title="Drag to resize the chat"></div>
 
   <div id="chips">
     <button id="btnSkills" class="primaryChip" title="All office skills">&#129520; Skills</button>
@@ -118,6 +121,8 @@
     </label>
     <label>Your name <input id="sName" placeholder="optional, for reports"></label>
     <label class="row"><input id="sSpeak" type="checkbox"> Read replies aloud</label>
+    <label class="row"><input id="sNatural" type="checkbox"> Natural voice, speaks Burmese too (online, Microsoft)</label>
+    <div id="naturalNote" class="pNote"></div>
     <label class="row"><input id="sAuto" type="checkbox"> Start Pip when Windows starts</label>
     <label>Voice <select id="sVoice"></select></label>
     <label>Voice language (what you speak)

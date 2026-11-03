@@ -25,7 +25,7 @@ function mood(m, ms) {
   if (ms) moodTimer = setTimeout(() => mood('idle'), ms);
 }
 setInterval(() => {
-  if (!busy && !speechSynthesis.speaking && Date.now() - lastActive > 5 * 60 * 1000 && !pipEl.classList.contains('sleep')) {
+  if (!busy && !isSpeaking() && Date.now() - lastActive > 5 * 60 * 1000 && !pipEl.classList.contains('sleep')) {
     mood('sleep'); charSound('sleep'); say(charStyle().sleepy, 6000);
   }
 }, 15000);
@@ -39,42 +39,65 @@ function say(text, ms = 6000) {          // small speech bubble when the panel i
 hint.onclick = () => { hint.classList.add('hidden'); openPanel(); };
 
 // ---------------------------------------------------------------- click-through + drag
-// Dragging uses pointer capture so the character keeps following the mouse even when the
-// cursor runs ahead of the window. It only counts as a click if the pointer barely moved.
-let overHit = null, drag = null;
+// Dragging is done by the main process from the REAL cursor position (screen.getCursorScreenPoint):
+// inside the moving window the page's own mouse coordinates lag behind, which made a drag look
+// like a click. On release, main reports how far the cursor travelled: under 5 px = a click.
+let overHit = null, dragging = false;
 document.addEventListener('mousemove', (e) => {
-  if (drag) return;
+  if (dragging) return;
   const hit = !!e.target.closest('.hit');
   if (hit !== overHit) { overHit = hit; window.pip.ignoreMouse(!hit); }
   if (hit) wake();
 });
 pipEl.addEventListener('pointerdown', (e) => {
   if (e.button !== 0) return;
-  drag = { sx: e.screenX, sy: e.screenY, wx: null, wy: null, moved: false, t: Date.now() };
+  dragging = true;
   pipEl.setPointerCapture(e.pointerId);
   window.pip.ignoreMouse(false);
-  window.pip.windowPos().then(([wx, wy]) => { if (drag) { drag.wx = wx; drag.wy = wy; } });
+  window.pip.dragStart();
 });
-pipEl.addEventListener('pointermove', (e) => {
-  if (!drag) return;
-  const dx = e.screenX - drag.sx, dy = e.screenY - drag.sy;
-  if (!drag.moved && Math.hypot(dx, dy) > 4) { drag.moved = true; pipEl.classList.add('drag'); }
-  if (drag.moved && drag.wx !== null) window.pip.moveWindow(drag.wx + dx, drag.wy + dy);
-});
-let justDragged = false;
-function endDrag(e) {
-  if (!drag) return;
-  justDragged = drag.moved || Math.hypot(e.screenX - drag.sx, e.screenY - drag.sy) > 4;
-  drag = null; pipEl.classList.remove('drag');
+async function endDrag(e, cancelled) {
+  if (!dragging) return;
+  dragging = false;
   try { pipEl.releasePointerCapture(e.pointerId); } catch { }
+  const { moved } = await window.pip.dragEnd();
+  pipEl.classList.remove('drag');
+  if (!moved && !cancelled) togglePanel();
 }
-pipEl.addEventListener('pointerup', endDrag);
-pipEl.addEventListener('pointercancel', (e) => { endDrag(e); justDragged = true; });
-// the browser's own click event = a real press+release on the character; a drag is ignored
-pipEl.addEventListener('click', () => {
-  if (justDragged) { justDragged = false; return; }
-  togglePanel();
+pipEl.addEventListener('pointerup', (e) => endDrag(e, false));
+pipEl.addEventListener('pointercancel', (e) => endDrag(e, true));
+window.pip.onDragMoved(() => pipEl.classList.add('drag'));
+// ---- chat window: minimize, expand/restore, free resize from the top-left grip
+let expanded = false;
+async function toggleExpand() {
+  expanded = !expanded;
+  await window.pip.expand(expanded);
+  $('#btnExpand').innerHTML = expanded ? '&#10529;' : '&#10530;';
+  $('#btnExpand').title = expanded ? 'Restore size' : 'Expand';
+  log.scrollTop = log.scrollHeight;
+}
+$('#btnExpand').onclick = toggleExpand;
+$('#head').addEventListener('dblclick', (e) => { if (!e.target.closest('button')) toggleExpand(); });
+$('#btnMin').onclick = () => { panel.classList.add('hidden'); say('Minimized - click me to open the chat again 💬', 3000); };
+const grip = $('#grip');
+grip.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0) return;
+  e.preventDefault(); e.stopPropagation();
+  grip.setPointerCapture(e.pointerId);
+  dragging = true; window.pip.ignoreMouse(false);
+  window.pip.resizeStart();
 });
+const endResize = async (e) => {
+  if (!dragging) return;
+  dragging = false;
+  try { grip.releasePointerCapture(e.pointerId); } catch { }
+  await window.pip.resizeEnd();
+  expanded = false; $('#btnExpand').innerHTML = '&#10530;';
+  log.scrollTop = log.scrollHeight;
+};
+grip.addEventListener('pointerup', endResize);
+grip.addEventListener('pointercancel', endResize);
+
 // right-click the character = Settings
 pipEl.addEventListener('contextmenu', (e) => { e.preventDefault(); openPanel(); openSettings(); });
 
@@ -184,7 +207,7 @@ window.pip.onChunk(({ id, text }) => {
   streamTarget.classList.remove('typing');
   streamTarget.innerHTML = md(shown);
   log.scrollTop = log.scrollHeight;
-  if (!speechSynthesis.speaking) mood('talk');
+  if (!isSpeaking()) mood('talk');
 });
 
 async function askAI({ text = '', audio = null, display = null, extraSystem = '', tools = null, afterRead = false, copyResult = false, autoPpt = false }) {
@@ -597,12 +620,48 @@ function loadVoices() {
 }
 speechSynthesis.onvoiceschanged = loadVoices;
 
-function speak(text) {
-  speechSynthesis.cancel();
+// ---- natural (neural) voices: Burmese + English, spoken sentence by sentence
+let ttsReady = null, ttsGen = 0, ttsAudio = null;
+window.pip.ttsAvailable().then((ok) => (ttsReady = ok));
+const NEURAL_DEFAULT = { my: 'my-MM-ThihaNeural', en: 'en-US-GuyNeural', pitch: '+0Hz', rate: '+0%' };
+const isSpeaking = () => speechSynthesis.speaking || !!(ttsAudio && !ttsAudio.paused);
+function stopSpeaking() { ttsGen++; if (ttsAudio) { ttsAudio.pause(); ttsAudio = null; } speechSynthesis.cancel(); }
+function sentences(t) {
+  const parts = t.replace(/\s+/g, ' ').match(/[^\u104B.!?\n]+[\u104B.!?]*/g) || [t];
+  const out = []; let cur = '';
+  for (const p of parts) { if ((cur + p).length > 220 && cur) { out.push(cur); cur = ''; } cur += p; }
+  if (cur.trim()) out.push(cur);
+  return out.map((s) => s.trim()).filter((s) => /[\p{L}\p{N}]/u.test(s));
+}
+async function speakNeural(plain, burmese) {
+  const n = { ...NEURAL_DEFAULT, ...(charStyle().neural || {}) };
+  const voice = burmese ? n.my : n.en, gen = ++ttsGen;
+  const parts = sentences(plain);
+  let next = parts.length ? window.pip.ttsSpeak({ text: parts[0], voice, rate: n.rate, pitch: n.pitch }) : null;
+  for (let i = 0; i < parts.length; i++) {
+    const r = await next;
+    if (gen !== ttsGen) return true;
+    next = i + 1 < parts.length ? window.pip.ttsSpeak({ text: parts[i + 1], voice, rate: n.rate, pitch: n.pitch }) : null;   // prepare the next sentence while this one plays
+    if (!r.ok) return i > 0;   // failed at the start: fall back to Windows voices
+    await new Promise((resolve) => {
+      ttsAudio = new Audio(r.url);
+      ttsAudio.onplay = () => mood('talk');
+      ttsAudio.onended = ttsAudio.onerror = resolve;
+      ttsAudio.play().catch(resolve);
+    });
+    if (gen !== ttsGen) return true;
+  }
+  mood('idle');
+  return true;
+}
+
+async function speak(text) {
+  stopSpeaking();
   if (!settings.speak) { mood('happy', 1500); return; }
   const plain = text.replace(/```[\s\S]*?```/g, ' (code shown on screen) ').replace(/[#*`>_|]/g, '').replace(/\[(.*?)\]\(.*?\)/g, '$1')
     .replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/gu, '').slice(0, 900);
   const burmese = /[\u1000-\u109F]/.test(plain);
+  if (settings.naturalVoice !== false && ttsReady && await speakNeural(plain, burmese)) return;
   let voice = voices.find((v) => v.name === settings.voice);
   // no voice chosen: let the character suggest one (e.g. a female voice for a girl character)
   if (!voice && charStyle().voiceHint) voice = voices.find((v) => charStyle().voiceHint.test(v.name));
@@ -628,7 +687,7 @@ $('#form').addEventListener('submit', (e) => {
 });
 input.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('#form').requestSubmit(); }
-  if (e.key === 'Escape') speechSynthesis.cancel();
+  if (e.key === 'Escape') stopSpeaking();
 });
 input.addEventListener('input', () => { input.style.height = ''; input.style.height = Math.min(input.scrollHeight, 90) + 'px'; });
 
@@ -739,7 +798,7 @@ async function startRec() {
       live = Math.sqrt(s / (d.length / 4));
     };
     src.connect(proc); proc.connect(ctx.destination);
-    speechSynthesis.cancel();
+    stopSpeaking();
     const meter = setInterval(() => say(`🎤 Listening ${levelBar(live)}  (click mic or Ctrl+Alt+V to stop)`, 30000), 150);
     rec = { stream, ctx, proc, chunks, meter, timer: setTimeout(stopRec, 30000) };
     $('#btnMic').classList.add('rec'); mood('listen');
@@ -917,6 +976,8 @@ async function openSettings() {
   $('#sProxy').value = settings.proxy || '';
   $('#sLang').value = settings.replyLang; $('#sName').value = settings.userName;
   $('#sSpeak').checked = settings.speak; loadVoices();
+  $('#sNatural').checked = settings.naturalVoice !== false;
+  $('#naturalNote').textContent = ttsReady === false ? 'Not installed - to enable: open a terminal and run   pip install edge-tts   then restart.' : '';
   $('#pEdit').classList.add('hidden'); $('#pAddMenu').classList.add('hidden');
   $('#settings').classList.remove('hidden');
   renderProviders();
@@ -968,6 +1029,7 @@ $('#sSave').onclick = async () => {
   settings = await window.pip.setSettings({
     proxy: $('#sProxy').value.trim(), fallback: $('#sFallback').checked, replyLang: $('#sLang').value,
     userName: $('#sName').value.trim(), speak: $('#sSpeak').checked, voice: $('#sVoice').value,
+    naturalVoice: $('#sNatural').checked,
     autoStart: $('#sAuto').checked, character: $('#sChar').value,
     sound: $('#sSound').checked, soundVolume: Number($('#sVolume').value),
     voiceLang: $('#sVoiceLang').value, micId: $('#sMic').value,
