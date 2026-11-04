@@ -211,11 +211,13 @@ window.pip.onChunk(({ id, text }) => {
   streamTarget.innerHTML = md(shown);
   log.scrollTop = log.scrollHeight;
   if (!isSpeaking()) mood('talk');
+  streamSpeak(shown);   // start voicing finished sentences right away
 });
 
 async function askAI({ text = '', audio = null, display = null, extraSystem = '', tools = null, afterRead = false, copyResult = false, autoPpt = false }) {
   if (busy) return;
   busy = true; wake();
+  stopSpeaking();   // a new question interrupts the previous answer's voice
   const files = [];
   let userText = text;
   if (attachment) {
@@ -312,7 +314,7 @@ async function askAI({ text = '', audio = null, display = null, extraSystem = ''
     if (await loadData()) return askAI({ text: request, display: false, afterRead: true });
     return answer;
   }
-  speak(answer);
+  finishSpeech(answer);   // voices the sentences the stream had not finished yet
   return answer;
 }
 
@@ -623,50 +625,72 @@ function loadVoices() {
 }
 speechSynthesis.onvoiceschanged = loadVoices;
 
-// ---- natural (neural) voices: Burmese + English, spoken sentence by sentence
-let ttsReady = null, ttsGen = 0, ttsAudio = null;
+// ---- natural (neural) voices: Burmese + English.
+// Each sentence is sent for voicing as soon as it is complete - even while the reply is still
+// streaming in - and the clips play in order. The voice service is ~3-4 s away from Myanmar,
+// so overlapping it with the reply is what makes her start talking quickly.
+let ttsReady = null, ttsGen = 0, ttsAudio = null, speechQ = [], speechPlaying = false;
+const spokenNow = new Set();   // sentences already queued for the current reply
 window.pip.ttsAvailable().then((ok) => (ttsReady = ok));
 const NEURAL_DEFAULT = { my: 'my-MM-ThihaNeural', en: 'en-US-GuyNeural', pitch: '+0Hz', rate: '+0%' };
-const isSpeaking = () => speechSynthesis.speaking || !!(ttsAudio && !ttsAudio.paused);
-function stopSpeaking() { ttsGen++; if (ttsAudio) { ttsAudio.pause(); ttsAudio = null; } speechSynthesis.cancel(); }
-function sentences(t) {
-  const parts = t.replace(/\s+/g, ' ').match(/[^\u104B.!?\n]+[\u104B.!?]*/g) || [t];
-  const out = []; let cur = '';
-  for (const p of parts) { if ((cur + p).length > 220 && cur) { out.push(cur); cur = ''; } cur += p; }
-  if (cur.trim()) out.push(cur);
-  return out.map((s) => s.trim()).filter((s) => /[\p{L}\p{N}]/u.test(s));
+const neuralOn = () => settings.speak !== false && settings.naturalVoice !== false && ttsReady;
+const isSpeaking = () => speechSynthesis.speaking || speechPlaying || !!(ttsAudio && !ttsAudio.paused);
+function stopSpeaking() {
+  ttsGen++; speechQ = []; spokenNow.clear();
+  if (ttsAudio) { ttsAudio.pause(); ttsAudio = null; }
+  speechSynthesis.cancel();
 }
-async function speakNeural(plain, burmese) {
+const toPlain = (text) => text.replace(/```[\s\S]*?```/g, ' ').replace(/[#*`>_|]/g, '').replace(/\[(.*?)\]\(.*?\)/g, '$1')
+  .replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/gu, '').replace(/(drawing chart|building table|writing slides)\.\.\./g, '');
+// split at Burmese "\u104B", ! ? , a "." followed by a space, or a line break (so "1.5" stays whole)
+const splitSentences = (t) => t.split(/(?<=[\u104B!?])\s*|(?<=\.)\s+|\n+/).map((s) => s.trim()).filter((s) => /[\p{L}\p{N}]/u.test(s));
+
+function queueSentence(s) {
+  const key = s.replace(/\s+/g, '');
+  if (spokenNow.has(key) || spokenNow.size > 40) return;
+  spokenNow.add(key);
   const n = { ...NEURAL_DEFAULT, ...(charStyle().neural || {}) };
-  const voice = burmese ? n.my : n.en, gen = ++ttsGen;
-  const parts = sentences(plain);
-  let next = parts.length ? window.pip.ttsSpeak({ text: parts[0], voice, rate: n.rate, pitch: n.pitch }) : null;
-  for (let i = 0; i < parts.length; i++) {
-    const r = await next;
-    if (gen !== ttsGen) return true;
-    next = i + 1 < parts.length ? window.pip.ttsSpeak({ text: parts[i + 1], voice, rate: n.rate, pitch: n.pitch }) : null;   // prepare the next sentence while this one plays
-    if (!r.ok) return i > 0;   // failed at the start: fall back to Windows voices
-    const played = await new Promise((resolve) => {
+  const voice = /[\u1000-\u109F]/.test(s) ? n.my : n.en;
+  speechQ.push({ gen: ttsGen, clip: window.pip.ttsSpeak({ text: s, voice, rate: n.rate, pitch: n.pitch }) });
+  pumpSpeech();
+}
+async function pumpSpeech() {
+  if (speechPlaying) return;
+  speechPlaying = true;
+  while (speechQ.length) {
+    const it = speechQ.shift();
+    const r = await it.clip;
+    if (it.gen !== ttsGen || !r.ok) continue;
+    await new Promise((resolve) => {
       ttsAudio = new Audio(r.url);
       ttsAudio.onplay = () => mood('talk');
-      ttsAudio.onended = () => resolve(true);
-      ttsAudio.onerror = () => resolve(false);
-      ttsAudio.play().catch(() => resolve(false));
+      ttsAudio.onended = ttsAudio.onerror = resolve;
+      ttsAudio.play().catch(resolve);
     });
-    if (!played && i === 0) { console.warn('natural voice could not play'); return false; }   // let the Windows voice try
-    if (gen !== ttsGen) return true;
   }
-  mood('idle');
-  return true;
+  speechPlaying = false; ttsAudio = null;
+  if (!busy) mood('idle');
+}
+// called with the reply text so far while it streams: voice every finished sentence
+function streamSpeak(textSoFar) {
+  if (!neuralOn()) return;
+  const plain = toPlain(textSoFar), parts = splitSentences(plain);
+  if (!/([\u104B!?\n]|\.\s)\s*$/.test(plain)) parts.pop();   // the last piece may still be growing ("1." may become "1.5")
+  parts.forEach(queueSentence);
+}
+// called once the reply is complete: voice whatever has not been voiced yet
+function finishSpeech(answer) {
+  if (!settings.speak) { mood('happy', 1500); return; }
+  if (!neuralOn()) return speak(answer);
+  splitSentences(toPlain(answer).slice(0, 1500)).forEach(queueSentence);
 }
 
 async function speak(text) {
   stopSpeaking();
   if (!settings.speak) { mood('happy', 1500); return; }
-  const plain = text.replace(/```[\s\S]*?```/g, ' (code shown on screen) ').replace(/[#*`>_|]/g, '').replace(/\[(.*?)\]\(.*?\)/g, '$1')
-    .replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/gu, '').slice(0, 900);
+  const plain = toPlain(text).slice(0, 900);
   const burmese = /[\u1000-\u109F]/.test(plain);
-  if (settings.naturalVoice !== false && ttsReady && await speakNeural(plain, burmese)) return;
+  if (neuralOn()) { splitSentences(plain).forEach(queueSentence); return; }
   let voice = voices.find((v) => v.name === settings.voice);
   // no voice chosen: let the character suggest one (e.g. a female voice for a girl character)
   if (!voice && charStyle().voiceHint) voice = voices.find((v) => charStyle().voiceHint.test(v.name));

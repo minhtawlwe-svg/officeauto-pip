@@ -226,21 +226,46 @@ function ttsAvailable() {
     p.on('close', (code) => resolve(ttsOk = code === 0));
   });
 }
+// One long-running Python helper (tts_worker.py) does all the speech, so there is no
+// process start-up per sentence; requests are answered by id, several at once.
+let ttsProc = null, ttsSeq = 0;
+const ttsPending = new Map();
+function ttsWorker() {
+  if (ttsProc) return ttsProc;
+  ttsProc = spawn('python', ['-u', path.join(__dirname, 'tts_worker.py')], { windowsHide: true });
+  let buf = '';
+  ttsProc.stdout.setEncoding('utf8');
+  ttsProc.stdout.on('data', (d) => {
+    buf += d;
+    let nl;
+    while ((nl = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, nl); buf = buf.slice(nl + 1);
+      try {
+        const r = JSON.parse(line), done = ttsPending.get(r.id);
+        if (!done) continue;
+        ttsPending.delete(r.id);
+        done(r.ok ? { ok: true, url: 'data:audio/mpeg;base64,' + r.b64 } : { ok: false, error: r.error || 'no audio' });
+      } catch { }
+    }
+  });
+  const reset = () => {
+    ttsProc = null;
+    for (const done of ttsPending.values()) done({ ok: false, error: 'voice helper stopped' });
+    ttsPending.clear();
+  };
+  ttsProc.on('exit', reset);
+  ttsProc.on('error', reset);
+  return ttsProc;
+}
 function ttsSpeak({ text, voice, rate, pitch }) {
   return new Promise((resolve) => {
     if (!/^[a-z]{2}-[A-Z]{2}-[A-Za-z]+Neural$/.test(voice || '')) return resolve({ ok: false, error: 'bad voice' });
     const r = /^[+-]\d{1,2}%$/.test(rate || '') ? rate : '+0%', pt = /^[+-]\d{1,2}Hz$/.test(pitch || '') ? pitch : '+0Hz';
-    const out = path.join(app.getPath('temp'), `pip-tts-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.mp3`);
-    const p = spawn('python', ['-m', 'edge_tts', '--voice', voice, `--rate=${r}`, `--pitch=${pt}`, '--text', String(text).slice(0, 1200), '--write-media', out], { windowsHide: true });
-    let err = '';
-    p.stderr.on('data', (d) => (err += d));
-    p.on('error', (e) => resolve({ ok: false, error: e.message }));
-    p.on('close', () => {
-      try {
-        const data = fs.readFileSync(out).toString('base64'); fs.rmSync(out, { force: true });
-        resolve({ ok: true, url: 'data:audio/mpeg;base64,' + data });
-      } catch { resolve({ ok: false, error: err.slice(0, 200) || 'no audio' }); }
-    });
+    const id = ++ttsSeq;
+    ttsPending.set(id, resolve);
+    setTimeout(() => { if (ttsPending.delete(id)) resolve({ ok: false, error: 'voice timeout' }); }, 20000);
+    try { ttsWorker().stdin.write(JSON.stringify({ id, text: String(text).slice(0, 1200), voice, rate: r, pitch: pt }) + '\n'); }
+    catch (e) { ttsPending.delete(id); resolve({ ok: false, error: e.message }); }
   });
 }
 
@@ -637,8 +662,9 @@ app.whenReady().then(() => {
   globalShortcut.register('Control+Alt+C', () => { win.show(); win.webContents.send('ui:clipboard'); });
   globalShortcut.register('Control+Alt+S', () => { win.show(); win.webContents.send('ui:open', 'settings'); });
   loadReminders();
+  ttsAvailable().then((ok) => { if (ok && settings.naturalVoice !== false) ttsWorker(); });   // warm up the voice helper
   setInterval(checkReminders, 15000);
   setTimeout(checkReminders, 5000);
 });
-app.on('will-quit', () => globalShortcut.unregisterAll());
+app.on('will-quit', () => { globalShortcut.unregisterAll(); if (ttsProc) ttsProc.kill(); });
 app.on('window-all-closed', () => app.quit());
