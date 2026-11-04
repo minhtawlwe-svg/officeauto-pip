@@ -12,9 +12,10 @@ const { spawn } = require('child_process');
 const CODE_EXT = /\.(js|html|css|py|ps1|txt|md|json)$/i;
 const NEVER = new Set(['package-lock.json', 'api-key.txt', 'api-key.example.txt', 'make-portable.ps1']);
 
-module.exports = function createUpdater({ net, dir, edition }) {
+module.exports = function createUpdater({ net, dir, edition, force = false }) {
   const repo = edition.updateRepo, branch = edition.updateBranch || 'main', editionDir = edition.editionDir;
-  const enabled = !!repo && !process.defaultApp;   // the dev checkout (electron.exe .) never self-updates
+  // the dev checkout (electron.exe .) never self-updates; force is only for tests
+  const enabled = !!repo && (force || !process.defaultApp);
   const STATE = path.join(dir, 'update-state.json'), INSTALLED = path.join(dir, 'installed.json'), BACKUP = path.join(dir, 'update-backup');
   const readJson = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
   const writeJson = (f, o) => fs.writeFileSync(f, JSON.stringify(o, null, 2));
