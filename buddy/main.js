@@ -257,6 +257,11 @@ function ttsWorker() {
   ttsProc.on('error', reset);
   return ttsProc;
 }
+// open the voice connections now (called when the user asks something), so they are ready for the reply
+function ttsWarm() {
+  if (settings.naturalVoice === false || ttsOk === false) return;
+  try { ttsWorker().stdin.write('{"warm": true}\n'); } catch { }
+}
 function ttsSpeak({ text, voice, rate, pitch }) {
   return new Promise((resolve) => {
     if (!/^[a-z]{2}-[A-Z]{2}-[A-Za-z]+Neural$/.test(voice || '')) return resolve({ ok: false, error: 'bad voice' });
@@ -615,6 +620,7 @@ function registerIpc() {
   }));
   ipcMain.handle('tts:available', () => ttsAvailable());
   ipcMain.handle('tts:speak', (_e, req) => ttsSpeak(req));
+  ipcMain.on('tts:warm', () => ttsWarm());
   ipcMain.handle('excel:active', () => activeExcelPath());
   ipcMain.handle('excel:recent', () => recentExcelFiles());
   ipcMain.handle('excel:chart', (_e, chart) => new Promise((resolve) => {
@@ -662,7 +668,7 @@ app.whenReady().then(() => {
   globalShortcut.register('Control+Alt+C', () => { win.show(); win.webContents.send('ui:clipboard'); });
   globalShortcut.register('Control+Alt+S', () => { win.show(); win.webContents.send('ui:open', 'settings'); });
   loadReminders();
-  ttsAvailable().then((ok) => { if (ok && settings.naturalVoice !== false) ttsWorker(); });   // warm up the voice helper
+  ttsAvailable().then((ok) => { if (ok && settings.naturalVoice !== false) ttsWarm(); });   // start the voice helper + open its connections
   setInterval(checkReminders, 15000);
   setTimeout(checkReminders, 5000);
 });

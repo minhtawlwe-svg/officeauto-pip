@@ -218,6 +218,7 @@ async function askAI({ text = '', audio = null, display = null, extraSystem = ''
   if (busy) return;
   busy = true; wake();
   stopSpeaking();   // a new question interrupts the previous answer's voice
+  if (neuralOn()) window.pip.ttsWarm();   // open the voice connections while the AI is thinking
   const files = [];
   let userText = text;
   if (attachment) {
@@ -651,9 +652,16 @@ function queueSentence(s) {
   spokenNow.add(key);
   const n = { ...NEURAL_DEFAULT, ...(charStyle().neural || {}) };
   const voice = /[\u1000-\u109F]/.test(s) ? n.my : n.en;
-  speechQ.push({ gen: ttsGen, clip: window.pip.ttsSpeak({ text: s, voice, rate: n.rate, pitch: n.pitch }) });
+  const cacheKey = `${voice}|${n.rate}|${n.pitch}|${key}`;
+  let clip = clipCache.get(cacheKey);   // repeated phrases (greetings...) play instantly
+  if (!clip) {
+    clip = window.pip.ttsSpeak({ text: s, voice, rate: n.rate, pitch: n.pitch });
+    clip.then((r) => { if (r.ok) { clipCache.set(cacheKey, Promise.resolve(r)); if (clipCache.size > 40) clipCache.delete(clipCache.keys().next().value); } });
+  }
+  speechQ.push({ gen: ttsGen, clip });
   pumpSpeech();
 }
+const clipCache = new Map();
 async function pumpSpeech() {
   if (speechPlaying) return;
   speechPlaying = true;
@@ -828,6 +836,7 @@ async function startRec() {
     };
     src.connect(proc); proc.connect(ctx.destination);
     stopSpeaking();
+    if (neuralOn()) window.pip.ttsWarm();   // while you talk, open the voice connections for her answer
     const meter = setInterval(() => say(`🎤 Listening ${levelBar(live)}  (click mic or Ctrl+Alt+V to stop)`, 30000), 150);
     rec = { stream, ctx, proc, chunks, meter, timer: setTimeout(stopRec, 30000) };
     $('#btnMic').classList.add('rec'); mood('listen');

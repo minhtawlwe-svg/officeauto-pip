@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('pip', {
   moveWindow: (x, y) => ipcRenderer.send('win:move', { x, y }),
   ttsAvailable: () => ipcRenderer.invoke('tts:available'),
   ttsSpeak: (req) => ipcRenderer.invoke('tts:speak', req),
+  ttsWarm: () => ipcRenderer.send('tts:warm'),
   dragStart: () => ipcRenderer.send('drag:start'),
   resizeStart: () => ipcRenderer.send('resize:start'),
   resizeEnd: () => ipcRenderer.invoke('resize:end'),
