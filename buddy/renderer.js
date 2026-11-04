@@ -9,7 +9,7 @@ const TASK_LABELS = {
 const FOLDER_TASKS = ['ToPdf', 'Duplicates'];
 // programs Pip may open (names must match main.js APPS)
 const APPS = { excel: 1, word: 1, powerpoint: 1, outlook: 1, notepad: 1, calculator: 1, explorer: 1, edge: 1, chrome: 1, teams: 1, paint: 1, snip: 1 };
-const TAG_RE = /\[\[(RUN|OPEN|APP|READ|REMIND|CLOSE|NEW):[^\]]*\]\]/g;
+const TAG_RE = /\[\[(RUN|OPEN|APP|READ|REMIND|CLOSE|NEW|REMEMBER):[^\]]*\]\]/g;
 
 // spreadsheet loaded for analysis - stays loaded for follow-up questions
 let data = null;   // { name, tables, text }
@@ -42,7 +42,7 @@ hint.onclick = () => { hint.classList.add('hidden'); openPanel(); };
 // Dragging is done by the main process from the REAL cursor position (screen.getCursorScreenPoint):
 // inside the moving window the page's own mouse coordinates lag behind, which made a drag look
 // like a click. On release, main reports how far the cursor travelled: under 5 px = a click.
-let overHit = null, dragging = false;
+let overHit = null, dragging = false, pressAt = 0;
 document.addEventListener('mousemove', (e) => {
   if (dragging) return;
   const hit = !!e.target.closest('.hit');
@@ -51,7 +51,7 @@ document.addEventListener('mousemove', (e) => {
 });
 pipEl.addEventListener('pointerdown', (e) => {
   if (e.button !== 0) return;
-  dragging = true;
+  dragging = true; pressAt = Date.now();
   pipEl.setPointerCapture(e.pointerId);
   window.pip.ignoreMouse(false);
   window.pip.dragStart();
@@ -62,7 +62,7 @@ async function endDrag(e, cancelled) {
   try { pipEl.releasePointerCapture(e.pointerId); } catch { }
   const { moved } = await window.pip.dragEnd();
   pipEl.classList.remove('drag');
-  if (!moved && !cancelled) togglePanel();
+  if (!moved && !cancelled && Date.now() - pressAt < 600) togglePanel();   // only a short tap is a click
 }
 pipEl.addEventListener('pointerup', (e) => endDrag(e, false));
 pipEl.addEventListener('pointercancel', (e) => endDrag(e, true));
@@ -152,6 +152,48 @@ const CHAR_PERSONAS = {
       penguin: 'You are Pebble, a neat, organised little penguin in a red scarf who lives above the Windows taskbar and helps an office worker through the day. Be tidy, precise and friendly.',
     };
 
+// ---------------------------------------------------------------- about the user + memory
+// "About me" (written by the user) and facts the AI learned ([[REMEMBER:...]]) go into every prompt.
+function aboutUserPrompt() {
+  const about = (settings.aboutMe || '').trim(), mem = (settings.memories || []).map((m) => '- ' + m.text);
+  return (about ? 'ABOUT THE USER (they wrote this themselves - use it to personalise every answer: their job, people, style, signature):\n"""\n' + about + '\n"""\n' : '') +
+    (mem.length ? 'THINGS YOU REMEMBER ABOUT THE USER:\n' + mem.join('\n') + '\n' : '') +
+    'MEMORY: when the user tells you a lasting fact about themselves (job, workplace, people they work with, preferences, routines, goals), ' +
+    'add [[REMEMBER:short fact in English]] on its own line (max 1-2 per reply, skip what is already known). Never remember passwords, keys, bank or card numbers.';
+}
+const SECRET_RE = /password|passwd|pin\b|api[ -]?key|card number|cvv|otp|\b\d{12,19}\b/i;
+async function rememberFact(text) {
+  text = text.replace(/\s+/g, ' ').trim().slice(0, 200);
+  if (!text || SECRET_RE.test(text)) return;
+  const list = [...(settings.memories || [])];
+  if (list.some((m) => m.text.toLowerCase() === text.toLowerCase())) return;
+  list.push({ t: Date.now(), text });
+  settings = await window.pip.setSettings({ memories: list.slice(-60) });
+  const el = addMsg('sys', esc('\u{1F9E0} Remembered: ' + text + '  '));
+  const undo = document.createElement('button'); undo.className = 'action'; undo.textContent = 'Undo';
+  undo.onclick = async () => {
+    settings = await window.pip.setSettings({ memories: (settings.memories || []).filter((m) => m.text !== text) });
+    el.textContent = '\u{1F9E0} Forgotten.';
+  };
+  el.appendChild(undo);
+}
+function renderMemories() {
+  const box = $('#memList'), list = settings.memories || [];
+  box.innerHTML = list.length ? '' : 'Nothing yet - I learn as we chat (you can also write in About me above).';
+  for (const m of [...list].reverse()) {
+    const row = document.createElement('div'); row.className = 'memRow';
+    row.innerHTML = '<span>' + esc(m.text) + '</span>';
+    const x = document.createElement('button'); x.type = 'button'; x.title = 'Forget this'; x.textContent = '\u2715';
+    x.onclick = async () => { settings = await window.pip.setSettings({ memories: (settings.memories || []).filter((y) => y !== m && y.t !== m.t) }); renderMemories(); };
+    row.appendChild(x); box.appendChild(row);
+  }
+}
+$('#sForget').onclick = async () => {
+  if (!confirm('Forget everything I learned about you? (About me text stays.)')) return;
+  settings = await window.pip.setSettings({ memories: [] });
+  renderMemories();
+};
+
 // ---------------------------------------------------------------- system prompt
 const localStamp = (d) => {
   const z = (n) => String(n).padStart(2, '0');
@@ -165,6 +207,7 @@ function systemPrompt(extra = '') {
   return [
     CHAR_PERSONAS[settings.character] || 'You are Pip, a friendly, upbeat little desktop assistant who lives above the Windows taskbar and helps an office worker get through the day.',
     `Today is ${now.toDateString()}, local time ${now.toLocaleTimeString()}.` + (settings.userName ? ` The user's name is ${settings.userName}.` : ''),
+    aboutUserPrompt(),
     'You help with: writing and polishing emails, messages and reports; Excel/Word/PowerPoint how-tos and formulas; summarizing documents; translating; planning the day; explaining errors. Be practical and concise: short paragraphs and bullet lists, no long preambles. Use light markdown (bold, bullets, code blocks for formulas/scripts).',
     lang,
     'You can also trigger these automations on the user\'s PC. When the user clearly asks for one, add ONE tag on its own line: ' +
@@ -273,6 +316,7 @@ async function askAI({ text = '', audio = null, display = null, extraSystem = ''
   const ex = extractBlocks(answer);
   answer = ex.text + (ex.broken ? '\n\n_(Part of my answer came out broken - ask me again.)_' : '');
   const charts = ex.charts, blocks = { table: ex.tables, slides: ex.slides };
+  const memTags = [...raw.matchAll(/\[\[REMEMBER:([^\]]+)\]\]/g)].map((m) => m[1].trim()).filter(Boolean);
   const remTags = [...raw.matchAll(/\[\[REMIND:([^|\]]+)\|([^\]]+)\]\]/g)].map((m) => ({ when: m[1].trim(), text: m[2].trim() }));
   const wantsRead = /\[\[READ:/.test(raw) && !afterRead;
   const anything = opens.length || tasks.length || charts.length || wantsRead || blocks.table.length || blocks.slides.length || remTags.length;
@@ -292,6 +336,7 @@ async function askAI({ text = '', audio = null, display = null, extraSystem = ''
   for (const spec of blocks.table.slice(0, 3)) renderTable(target, spec);
   for (const spec of blocks.slides.slice(0, 1)) renderSlides(target, spec, autoPpt);
   for (const r of remTags.slice(0, 5)) setReminderFromTag(r);
+  for (const m of memTags.slice(0, 3)) rememberFact(m);
   addTools(target, answer, tools);
   charSound('reply');
   if (copyResult && answer && answer !== '\u{1F44D}') {
@@ -1013,6 +1058,8 @@ async function openSettings() {
   $('#sFallback').checked = settings.fallback !== false;
   $('#sProxy').value = settings.proxy || '';
   $('#sLang').value = settings.replyLang; $('#sName').value = settings.userName;
+  $('#sAbout').value = settings.aboutMe || '';
+  renderMemories();
   $('#sSpeak').checked = settings.speak; loadVoices();
   $('#sNatural').checked = settings.naturalVoice !== false;
   $('#naturalNote').textContent = ttsReady === false ? 'Not installed - to enable: open a terminal and run   pip install edge-tts   then restart.' : '';
@@ -1067,6 +1114,7 @@ $('#sSave').onclick = async () => {
   settings = await window.pip.setSettings({
     proxy: $('#sProxy').value.trim(), fallback: $('#sFallback').checked, replyLang: $('#sLang').value,
     userName: $('#sName').value.trim(), speak: $('#sSpeak').checked, voice: $('#sVoice').value,
+    aboutMe: $('#sAbout').value.trim().slice(0, 4000),
     naturalVoice: $('#sNatural').checked,
     autoStart: $('#sAuto').checked, character: $('#sChar').value,
     sound: $('#sSound').checked, soundVolume: Number($('#sVolume').value),

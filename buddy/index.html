@@ -120,6 +120,15 @@
       <select id="sLang"><option value="auto">Same as I write</option><option value="en">English</option><option value="my">Burmese</option></select>
     </label>
     <label>Your name <input id="sName" placeholder="optional, for reports"></label>
+    <div class="secHead"><b>&#128100; About me</b><span class="pNote">the AI reads this before every answer</span></div>
+    <textarea id="sAbout" rows="6" spellcheck="false" placeholder="Tell the AI about you, e.g.
+- I work at ... as ... (department, what I do every day)
+- My boss / team: ...   My customers: ...
+- I write emails in English to clients, Burmese to my team
+- I like short answers with bullet points
+- My email signature: ..."></textarea>
+    <div class="secHead"><b>&#129504; Things I remember</b><button id="sForget" type="button" class="ghost">Forget everything</button></div>
+    <div id="memList" class="pNote"></div>
     <label class="row"><input id="sSpeak" type="checkbox"> Read replies aloud</label>
     <label class="row"><input id="sNatural" type="checkbox"> Natural voice, speaks Burmese too (online, Microsoft)</label>
     <div id="naturalNote" class="pNote"></div>

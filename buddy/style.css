@@ -136,6 +136,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #pStatus { font-size: 11.5px; color: var(--muted); white-space: pre-wrap; margin: 2px 0 4px; }
 #pStatus .ok { color: var(--ok); } #pStatus .bad { color: #ff8f8f; }
 #settings input[type=range] { padding: 0; background: none; border: 0; accent-color: var(--accent); }
+#sAbout { display: block; width: 100%; margin: 3px 0 4px; background: var(--bg2); border: 1px solid var(--line); color: var(--text);
+  border-radius: 8px; padding: 6px 8px; font: 12px "Segoe UI", "Myanmar Text", sans-serif; resize: vertical; user-select: text; }
+.secHead button.ghost { background: none; border: 1px solid var(--line); color: var(--muted); }
+.memRow { display: flex; justify-content: space-between; gap: 6px; padding: 2px 0; border-bottom: 1px solid var(--line); color: var(--text); }
+.memRow button { background: none; border: 0; color: var(--muted); cursor: pointer; }
 hr.sep { border: 0; border-top: 1px solid var(--line); margin: 10px 0; }
 #pKey { display: block; width: 100%; margin-top: 3px; background: var(--bg2); border: 1px solid var(--line); color: var(--text);
   border-radius: 8px; padding: 5px 8px; font: 12px Consolas, monospace; resize: vertical; user-select: text; -webkit-text-security: disc; }

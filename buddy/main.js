@@ -23,6 +23,8 @@ const DEFAULTS = {
   sound: true,                                         // character sounds (meow, woof...)
   soundVolume: 0.6,
   naturalVoice: true,                                  // Microsoft neural voices (incl. Burmese) when edge-tts is installed
+  aboutMe: '',                                         // what the user wrote about themselves
+  memories: [],                                        // facts the AI learned while chatting [{ t, text }]
   voiceLang: 'auto',                                   // auto | my | en - what the user speaks
   micId: '',                                           // '' = Windows default microphone
   autoStart: true,                                     // launch Pip when Windows starts
@@ -505,11 +507,13 @@ function registerIpc() {
   ipcMain.on('win:ignore', (_e, ignore) => win.setIgnoreMouseEvents(ignore, { forward: true }));
   ipcMain.on('win:move', (_e, { x, y }) => win.setPosition(Math.round(x), Math.round(y)));
   // drag the window by following the real OS cursor (renderer coordinates lag while the window moves)
-  let drag = null;
+  let drag = null, lastDrag = { t: 0, moved: false };
   ipcMain.on('drag:start', () => {
     const c = screen.getCursorScreenPoint(), [wx, wy] = win.getPosition();
     if (drag) clearInterval(drag.timer);
-    drag = { cx: c.x, cy: c.y, wx, wy, moved: false };
+    // a press right after a drag that moved = Chromium restarting the same drag, never a click
+    const continued = lastDrag.moved && Date.now() - lastDrag.t < 250;
+    drag = { cx: c.x, cy: c.y, wx, wy, moved: false, continued };
     drag.timer = setInterval(() => {
       const p = screen.getCursorScreenPoint(), dx = p.x - drag.cx, dy = p.y - drag.cy;
       if (!drag.moved && Math.hypot(dx, dy) > 4) { drag.moved = true; win.webContents.send('drag:moved'); }
@@ -544,7 +548,8 @@ function registerIpc() {
     if (!drag) return { moved: false };
     clearInterval(drag.timer);
     const p = screen.getCursorScreenPoint();
-    const moved = drag.moved || Math.hypot(p.x - drag.cx, p.y - drag.cy) > 4;
+    const moved = drag.moved || drag.continued || Math.hypot(p.x - drag.cx, p.y - drag.cy) > 4;
+    lastDrag = { t: Date.now(), moved };
     drag = null;
     return { moved };
   });
