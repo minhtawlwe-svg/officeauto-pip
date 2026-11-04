@@ -934,12 +934,13 @@ function wavBase64(pcm, rate) {
 // ---------------------------------------------------------------- settings
 const CHAR_NAMES = { pip: 'Pip', bears: 'Mocha & Milk', cat: 'Mango', dog: 'Kopi', capy: 'Capy', penguin: 'Pebble' };
 function applyCharacter() {
-  const c = CHAR_NAMES[settings.character] ? settings.character : 'pip';
+  const c = CHAR_NAMES[settings.character] ? settings.character : Object.keys(CHAR_NAMES)[0];
   pipEl.dataset.char = c;
   $('#head .who b').textContent = CHAR_NAMES[c];
   input.placeholder = `Ask ${CHAR_NAMES[c]} anything...  (Enter = send)`;
   $('#foot').textContent = `AI can make mistakes · drop a file on ${c === 'bears' ? 'us' : CHAR_NAMES[c]} to summarize`;
   pipEl.title = `${CHAR_NAMES[c]} - click to chat, drag to move, drop a file to summarize`;
+  if (typeof applyLook === 'function') applyLook();   // wardrobe (customize.js)
 }
 
 function showModelTag() {
@@ -1046,11 +1047,48 @@ $('#pSave').onclick = async () => {
   sys(`✔ Saved AI provider: ${d.name}`);
 };
 
+// ---- updates (only editions such as Tom & Eaindra update themselves from GitHub)
+const shortVer = (c) => (c && c.sha ? `${c.sha.slice(0, 7)} (${(c.date || '').slice(0, 10)})${c.message ? ' - ' + c.message : ''}` : 'unknown');
+async function showUpdateInfo() {
+  const i = await window.pip.updateInfo();
+  $('#updBox').classList.toggle('hidden', !i.enabled);
+  if (!i.enabled) return;
+  $('#updInfo').textContent = 'Installed version: ' + shortVer(i.current);
+  $('#sAutoUpd').checked = i.auto;
+}
+async function installUpdate(manual) {
+  sys('⬇ Downloading the update...');
+  say('Updating myself - back in a few seconds!', 8000);
+  const r = await window.pip.updateApply();
+  if (r.upToDate) sys('✔ Already up to date.');
+  else if (r.updated) sys(`✨ Update installed (${r.message || 'new version'}) - restarting...`);
+  else (manual ? errMsg : sys)('Update not installed: ' + r.error);
+}
+$('#updCheck').onclick = async () => {
+  $('#updInfo').textContent = 'Checking...';
+  const c = await window.pip.updateCheck();
+  if (c.error) { $('#updInfo').textContent = 'Could not check: ' + c.error; return; }
+  if (!c.available) { $('#updInfo').textContent = '✔ Up to date: ' + shortVer(c.current); return; }
+  $('#updInfo').textContent = 'New version: ' + shortVer(c.latest);
+  if (confirm('Install the new version now? The app restarts for a few seconds.')) installUpdate(true);
+};
+// automatic: wait until the user is not in the middle of something, then install
+window.pip.onUpdateAvailable(() => {
+  const tryNow = () => {
+    const quiet = !busy && !isSpeaking() && (panel.classList.contains('hidden') || Date.now() - lastActive > 60000);
+    if (!quiet) return setTimeout(tryNow, 30000);
+    installUpdate(false);
+  };
+  tryNow();
+});
+
 // ---- the rest of Settings
 async function openSettings() {
   settings = await window.pip.getSettings();
   $('#sAuto').checked = !!settings.autoStart;
-  $('#sChar').value = settings.character || 'pip';
+  showUpdateInfo();
+  $('#sChar').value = CHAR_NAMES[settings.character] ? settings.character : Object.keys(CHAR_NAMES)[0];
+  openLookEditor();
   $('#sVoiceLang').value = settings.voiceLang || 'auto';
   loadMics();
   $('#sSound').checked = settings.sound !== false;
@@ -1109,14 +1147,15 @@ $('#sMicTest').onclick = async () => {
   finally { if (stream) stream.getTracks().forEach((t) => t.stop()); b.disabled = false; }
 };
 $('#btnSettings').onclick = openSettings;
-$('#sCancel').onclick = () => $('#settings').classList.add('hidden');
+$('#sCancel').onclick = () => { closeLookEditor(false); applyCharacter(); $('#settings').classList.add('hidden'); };
 $('#sSave').onclick = async () => {
   settings = await window.pip.setSettings({
     proxy: $('#sProxy').value.trim(), fallback: $('#sFallback').checked, replyLang: $('#sLang').value,
     userName: $('#sName').value.trim(), speak: $('#sSpeak').checked, voice: $('#sVoice').value,
     aboutMe: $('#sAbout').value.trim().slice(0, 4000),
     naturalVoice: $('#sNatural').checked,
-    autoStart: $('#sAuto').checked, character: $('#sChar').value,
+    autoStart: $('#sAuto').checked, character: $('#sChar').value, looks: closeLookEditor(true),
+    autoUpdate: $('#sAutoUpd').checked,
     sound: $('#sSound').checked, soundVolume: Number($('#sVolume').value),
     voiceLang: $('#sVoiceLang').value, micId: $('#sMic').value,
   });
@@ -1140,6 +1179,11 @@ $('#sSave').onclick = async () => {
     charSound('hello');
   }, 800);
   if (!settings.hasKey) setTimeout(() => { openPanel(); openSettings(); }, 1500);
+
+  // self-update (editions): tell the user what changed after an update or a roll-back
+  const boot = await window.pip.appReady();
+  if (boot.justUpdated) sys(`✨ Updated: ${boot.message || 'new version installed'}`);
+  if (boot.rolledBack) sys('The last update did not start properly, so the previous version was restored.');
 
   const nudged = {};
   setInterval(() => {

@@ -1,0 +1,14 @@
+{
+  "name": "tom-eaindra-buddy",
+  "version": "1.0.0",
+  "description": "Tom & Eaindra - AI desktop buddies for office work (an OfficeAuto Pip edition)",
+  "main": "main.js",
+  "private": true,
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.3.0",
+    "chart.js": "^4.4.7",
+    "exceljs": "^4.4.0",
+    "mammoth": "1.8.0"
+  },
+  "productName": "Tom & Eaindra"
+}

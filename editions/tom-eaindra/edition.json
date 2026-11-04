@@ -1,0 +1,8 @@
+{
+  "appName": "Tom & Eaindra",
+  "appId": "OfficeAuto.TomEaindra",
+  "defaultCharacter": "eaindra",
+  "updateRepo": "minhtawlwe-svg/officeauto-pip",
+  "updateBranch": "main",
+  "editionDir": "editions/tom-eaindra"
+}

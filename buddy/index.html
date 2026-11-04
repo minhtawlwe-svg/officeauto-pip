@@ -112,6 +112,13 @@
         <option value="penguin">Pebble (penguin)</option>
       </select>
     </label>
+    <div id="lookBox" class="hidden">
+      <div class="secHead"><b>&#127912; Look</b><button id="lookReset" type="button" class="ghost">Reset look</button></div>
+      <div id="lookColors" class="lookGrid"></div>
+      <label id="hairRow" class="hidden">Hair style <select id="lookHair"></select></label>
+      <label>Eyes <select id="lookEyes"></select></label>
+      <label>Accessory <div class="inline"><select id="lookAcc"></select><input id="lookAccColor" type="color" title="Accessory colour"></div></label>
+    </div>
     <label class="row"><input id="sSound" type="checkbox"> Character sounds (meow, woof, honk...)</label>
     <label>Sound volume
       <div class="inline"><input id="sVolume" type="range" min="0" max="1" step="0.05"><button id="sSoundTest" type="button">&#128264; Play</button></div>
@@ -132,7 +139,12 @@
     <label class="row"><input id="sSpeak" type="checkbox"> Read replies aloud</label>
     <label class="row"><input id="sNatural" type="checkbox"> Natural voice, speaks Burmese too (online, Microsoft)</label>
     <div id="naturalNote" class="pNote"></div>
-    <label class="row"><input id="sAuto" type="checkbox"> Start Pip when Windows starts</label>
+    <label class="row"><input id="sAuto" type="checkbox"> Start when Windows starts</label>
+    <div id="updBox" class="hidden">
+      <div class="secHead"><b>&#11014; Updates</b><button id="updCheck" type="button" class="ghost">Check now</button></div>
+      <div id="updInfo" class="pNote"></div>
+      <label class="row"><input id="sAutoUpd" type="checkbox"> Install updates automatically</label>
+    </div>
     <label>Voice <select id="sVoice"></select></label>
     <label>Voice language (what you speak)
       <select id="sVoiceLang"><option value="auto">Auto (Burmese or English)</option><option value="my">Burmese (မြန်မာ)</option><option value="en">English</option></select>
@@ -373,7 +385,10 @@
 <script src="renderer.js"></script>
 <script src="skills.js"></script>
 <script src="sounds.js"></script>
+<script src="customize.js"></script>
 <!-- optional personal characters (buddy/private is never uploaded to GitHub) -->
 <script src="private/character.js"></script>
+<!-- an edition's own characters (e.g. editions/tom-eaindra/characters.js), absent in plain Pip -->
+<script src="characters.js"></script>
 </body>
 </html>

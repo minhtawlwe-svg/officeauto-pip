@@ -7,7 +7,13 @@ const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
 
-const ROOT = path.join(__dirname, '..');            // OfficeAuto folder
+// An "edition" (e.g. Tom & Eaindra) ships an edition.json next to this file: its own name, characters, updates.
+const EDITION = (() => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'edition.json'), 'utf8')); } catch { return {}; } })();
+const APP_NAME = EDITION.appName || 'Pip OfficeAuto Buddy';
+// OfficeAuto.ps1 + config.json: next to this file in a packaged edition, one folder up in the dev checkout
+const ROOT = fs.existsSync(path.join(__dirname, 'OfficeAuto.ps1')) ? __dirname : path.join(__dirname, '..');
+// bundled portable Python (pythonpython.exe) lets natural voices work without installing anything
+const PYTHON = fs.existsSync(path.join(__dirname, 'python', 'python.exe')) ? path.join(__dirname, 'python', 'python.exe') : 'python';
 const SCRIPT = path.join(ROOT, 'OfficeAuto.ps1');
 const SETTINGS_FILE = () => path.join(app.getPath('userData'), 'settings.json');
 
@@ -19,19 +25,23 @@ const DEFAULTS = {
   speak: true,
   voice: '',
   userName: '',
-  character: 'pip',                                   // pip | bears
+  character: EDITION.defaultCharacter || 'pip',       // pip | bears | cat | dog | capy | penguin | edition characters
   sound: true,                                         // character sounds (meow, woof...)
   soundVolume: 0.6,
   naturalVoice: true,                                  // Microsoft neural voices (incl. Burmese) when edge-tts is installed
+  looks: {},                                           // wardrobe: per-character colours / eyes / accessory / hair
   aboutMe: '',                                         // what the user wrote about themselves
   memories: [],                                        // facts the AI learned while chatting [{ t, text }]
   voiceLang: 'auto',                                   // auto | my | en - what the user speaks
   micId: '',                                           // '' = Windows default microphone
   autoStart: true,                                     // launch Pip when Windows starts
+  autoUpdate: true,                                    // editions: install updates from GitHub by themselves
 };
 let win, tray, settings;
 let providers = [];            // [{ id, preset, type, name, mode, relayUrl, baseUrl, model, keys[] }] - keys decrypted in memory only
 const AI = require('./providers')({ net });
+const UPD = require('./updater')({ net, dir: __dirname, edition: EDITION });
+let bootInfo = null;   // set at start-up: just updated / rolled back
 
 // ---------------------------------------------------------------- settings (API keys encrypted with Windows DPAPI)
 const enc = (keys) => (keys.length ? safeStorage.encryptString(keys.join(',')).toString('base64') : '');
@@ -103,8 +113,9 @@ function draftProvider(draft) {
 function applyAutoStart() {
   // unpackaged Electron: launch electron.exe with this app folder as the argument
   app.setLoginItemSettings({
-    openAtLogin: !!settings.autoStart, name: 'Pip OfficeAuto Buddy',
-    path: process.execPath, args: [app.getAppPath()],
+    openAtLogin: !!settings.autoStart, name: APP_NAME,
+    // a packaged .exe starts the app by itself; only the dev runner (electron.exe .) needs the folder
+    path: process.execPath, args: process.defaultApp ? [app.getAppPath()] : [],
   });
 }
 
@@ -151,7 +162,7 @@ function trayIcon() {
 
 function createTray() {
   tray = new Tray(trayIcon());
-  tray.setToolTip('Pip - AI office buddy');
+  tray.setToolTip(`${EDITION.appName || 'Pip'} - AI office buddy`);
   tray.on('click', toggle);
   refreshTray();
 }
@@ -159,7 +170,7 @@ function createTray() {
 function refreshTray() {
   if (!tray) return;
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Show / hide Pip  (Ctrl+Alt+Space)', click: toggle },
+    { label: 'Show / hide  (Ctrl+Alt+Space)', click: toggle },
     { label: 'Settings / API keys', click: () => { win.show(); win.webContents.send('ui:open', 'settings'); } },
     { label: 'Start with Windows', type: 'checkbox', checked: !!settings.autoStart,
       click: (item) => { saveSettings({ autoStart: item.checked }); win.webContents.send('ui:settings'); } },
@@ -223,7 +234,7 @@ let ttsOk = null;
 function ttsAvailable() {
   if (ttsOk !== null) return Promise.resolve(ttsOk);
   return new Promise((resolve) => {
-    const p = spawn('python', ['-m', 'edge_tts', '--version'], { windowsHide: true });
+    const p = spawn(PYTHON, ['-m', 'edge_tts', '--version'], { windowsHide: true });
     p.on('error', () => resolve(ttsOk = false));
     p.on('close', (code) => resolve(ttsOk = code === 0));
   });
@@ -234,7 +245,7 @@ let ttsProc = null, ttsSeq = 0;
 const ttsPending = new Map();
 function ttsWorker() {
   if (ttsProc) return ttsProc;
-  ttsProc = spawn('python', ['-u', path.join(__dirname, 'tts_worker.py')], { windowsHide: true });
+  ttsProc = spawn(PYTHON, ['-u', path.join(__dirname, 'tts_worker.py')], { windowsHide: true });
   let buf = '';
   ttsProc.stdout.setEncoding('utf8');
   ttsProc.stdout.on('data', (d) => {
@@ -624,6 +635,15 @@ function registerIpc() {
     tk.on('close', (code) => resolve(code === 0 ? { ok: true, label: key } : { ok: false, error: `${key} doesn't seem to be open.` }));
   }));
   ipcMain.handle('tts:available', () => ttsAvailable());
+  // ---- self-update (editions only)
+  ipcMain.handle('app:ready', () => { UPD.markHealthy(); return bootInfo || {}; });
+  ipcMain.handle('update:info', () => ({ ...UPD.info(), auto: settings.autoUpdate !== false }));
+  ipcMain.handle('update:check', () => UPD.check().catch((e) => ({ enabled: UPD.enabled, error: String(e.message || e) })));
+  ipcMain.handle('update:apply', async () => {
+    const r = await UPD.apply();
+    if (r.updated) setTimeout(() => { app.relaunch(); app.exit(0); }, 1500);   // restart into the new version
+    return r;
+  });
   ipcMain.handle('tts:speak', (_e, req) => ttsSpeak(req));
   ipcMain.on('tts:warm', () => ttsWarm());
   ipcMain.handle('excel:active', () => activeExcelPath());
@@ -660,7 +680,9 @@ if (!app.requestSingleInstanceLock()) app.quit();
 app.on('second-instance', () => { if (win) { win.show(); win.webContents.send('ui:open', 'chat'); } });
 
 app.whenReady().then(() => {
-  app.setAppUserModelId('OfficeAuto.Pip');   // so Windows notifications show our name
+  app.setAppUserModelId(EDITION.appId || 'OfficeAuto.Pip');   // so Windows notifications show our name
+  bootInfo = UPD.bootCheck();
+  if (bootInfo && bootInfo.rolledBack) { app.relaunch(); app.exit(0); return; }   // new version failed twice: back to the old one
   loadSettings();
   applyProxy();
   applyAutoStart();
@@ -676,6 +698,15 @@ app.whenReady().then(() => {
   ttsAvailable().then((ok) => { if (ok && settings.naturalVoice !== false) ttsWarm(); });   // start the voice helper + open its connections
   setInterval(checkReminders, 15000);
   setTimeout(checkReminders, 5000);
+  if (UPD.enabled) {   // editions: look for updates 90 s after start, then every 6 hours
+    const autoUpdate = async () => {
+      if (settings.autoUpdate === false) return;
+      const c = await UPD.check().catch(() => null);
+      if (c && c.available && win) win.webContents.send('update:available', c.latest);
+    };
+    setTimeout(autoUpdate, 90 * 1000);
+    setInterval(autoUpdate, 6 * 3600 * 1000);
+  }
 });
 app.on('will-quit', () => { globalShortcut.unregisterAll(); if (ttsProc) ttsProc.kill(); });
 app.on('window-all-closed', () => app.quit());

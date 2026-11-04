@@ -141,6 +141,18 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .secHead button.ghost { background: none; border: 1px solid var(--line); color: var(--muted); }
 .memRow { display: flex; justify-content: space-between; gap: 6px; padding: 2px 0; border-bottom: 1px solid var(--line); color: var(--text); }
 .memRow button { background: none; border: 0; color: var(--muted); cursor: pointer; }
+/* wardrobe */
+.lookGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; margin: 2px 0 4px; }
+.lookSwatch { display: flex !important; align-items: center; gap: 6px; margin: 0 !important; color: var(--text) !important; }
+#settings .lookSwatch input[type=color], #lookAccColor { width: 30px !important; height: 22px; padding: 0 !important; border: 1px solid var(--line); border-radius: 6px; background: none; flex: none; }
+.lkLine { fill: none; stroke: #2a1e18; stroke-linecap: round; }
+.lkSpark { fill: #fff; }
+.lkHeart { fill: #ff4d6d; stroke: #c9184a; stroke-width: .8; }
+.lkFrame { fill: rgba(255,255,255,.14); stroke-linecap: round; }
+.lkShade { fill: #141414; opacity: .93; }
+#pip[data-eyes="happy"]:not(.sleep) .eyes .eye, #pip[data-eyes="heart"]:not(.sleep) .eyes .eye { opacity: 0; }
+#pip[data-eyes="wink"]:not(.sleep) .eyes .eye + .eye { opacity: 0; }
+#pip.sleep .lkEyes { display: none; }
 hr.sep { border: 0; border-top: 1px solid var(--line); margin: 10px 0; }
 #pKey { display: block; width: 100%; margin-top: 3px; background: var(--bg2); border: 1px solid var(--line); color: var(--text);
   border-radius: 8px; padding: 5px 8px; font: 12px Consolas, monospace; resize: vertical; user-select: text; -webkit-text-security: disc; }
