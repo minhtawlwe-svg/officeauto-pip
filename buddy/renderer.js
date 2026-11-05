@@ -951,6 +951,10 @@ function wavBase64(pcm, rate) {
 const CHAR_NAMES = { pip: 'Pip', bears: 'Mocha & Milk', cat: 'Mango', dog: 'Kopi', capy: 'Capy', penguin: 'Pebble' };
 function applyCharacter() {
   const c = CHAR_NAMES[settings.character] ? settings.character : Object.keys(CHAR_NAMES)[0];
+  // switching character starts a fresh chat, so one character's wording doesn't leak into the other's
+  // (chatChar, not dataset.char: Settings previews change dataset.char without really switching)
+  if (applyCharacter.chatChar && applyCharacter.chatChar !== c && history.length && typeof newChat === 'function') newChat(true);
+  applyCharacter.chatChar = c;
   pipEl.dataset.char = c;
   $('#head .who b').textContent = CHAR_NAMES[c];
   input.placeholder = `Ask ${CHAR_NAMES[c]} anything...  (Enter = send)`;
@@ -1193,6 +1197,15 @@ $('#sMicTest').onclick = async () => {
   finally { if (stream) stream.getTracks().forEach((t) => t.stop()); b.disabled = false; }
 };
 $('#btnSettings').onclick = openSettings;
+// New chat: forget the conversation so far (About me + saved memories are kept)
+function newChat(quiet) {
+  if (busy) return;
+  stopSpeaking();
+  history = []; clearAttachment();
+  $('#log').innerHTML = '';
+  if (!quiet) sys('🧹 New chat started.');
+}
+$('#btnNewChat').onclick = () => { if (!history.length || confirm('Clear this chat and start a new one?')) newChat(); };
 $('#sSize').oninput = () => { $('#sSizeVal').textContent = Math.round($('#sSize').value * 100) + '%'; applySize($('#sSize').value); };   // live preview
 $('#sCancel').onclick = () => { closeLookEditor(false); applyCharacter(); $('#settings').classList.add('hidden'); };
 $('#sSave').onclick = async () => {

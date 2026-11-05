@@ -351,3 +351,7 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 10px 0; }
 #pip.happy .char-bears .hearts, #pip.talk .char-bears .hearts { display: block; animation: floatUp 1.4s ease-out infinite; }
 @keyframes floatUp { from { transform: translateY(8px); opacity: 0; } 40% { opacity: 1; } to { transform: translateY(-10px); opacity: 0; } }
 
+/* header: keep the 5 buttons on one row; the name/model text shrinks instead */
+#head .headBtns { display: flex; flex-shrink: 0; flex-wrap: nowrap; }
+#head .who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#head .headBtns button { padding: 2px 5px; }
