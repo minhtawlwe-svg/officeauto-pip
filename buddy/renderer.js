@@ -1023,7 +1023,7 @@ function openEditor(p) {
   $('#pName').value = p.name || ''; $('#pMode').value = p.mode || 'relay'; $('#pRelay').value = p.relayUrl || pr.relayUrl || '';
   $('#pBase').value = p.baseUrl || pr.baseUrl || ''; $('#pModel').value = p.model || '';
   $('#pKey').value = ''; $('#pKey').classList.remove('reveal'); $('#pShow').textContent = 'Show';
-  $('#pKey').placeholder = p.keyCount ? `${p.keyCount} saved (${(p.keyMasks || []).join(', ')}) - leave empty to keep` : 'paste key - one per line to add several';
+  renderKeyList(p);
   $('#pStatus').textContent = p.keyFrom && p.keyFrom !== 'Settings' ? `Using key from ${p.keyFrom}.` : '';
   $('#pModelList').innerHTML = '';
   const type = p.type || pr.type, noKey = p.noKey || pr.noKey;
@@ -1033,6 +1033,22 @@ function openEditor(p) {
   syncRelayRow();
   $('#pEdit').classList.remove('hidden');
   $('#pEdit').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+// saved keys of the provider being edited, each with its own remove button
+function renderKeyList(p) {
+  const own = p.keyFrom === 'Settings' ? p.keyMasks || [] : [];
+  $('#pKey').placeholder = own.length ? 'paste more keys here to ADD them (one per line)' : 'paste key - one per line to add several';
+  const box = $('#pKeyList');
+  box.innerHTML = own.length
+    ? `<div class="pNote">${own.length} saved key${own.length > 1 ? 's' : ''}${own.length > 1 ? ' - when one hits its limit the next is used automatically' : ' - add more keys so it can switch when one hits its limit'}:</div>`
+      + own.map((m, i) => `<div class="keyItem"><code>${i + 1}. ${esc(m)}</code><button type="button" data-i="${i}" title="Remove this key">✕</button></div>`).join('')
+    : '';
+  box.querySelectorAll('button').forEach((b) => b.onclick = async () => {
+    if (!confirm(`Remove key ${Number(b.dataset.i) + 1} (${own[b.dataset.i]})?`)) return;
+    const r = await window.pip.saveProvider({ ...readEditor(), removeKey: Number(b.dataset.i) });
+    settings = r.settings; renderProviders(r);
+    const np = r.list.find((x) => x.id === editing.id); if (np) { editing = { ...editing, ...np }; renderKeyList(np); }
+  });
 }
 function syncRelayRow() { $('.pRelay').classList.toggle('hidden', (editing?.type || presets[editing?.preset]?.type) !== 'gemini' || $('#pMode').value === 'direct'); }
 $('#pMode').onchange = syncRelayRow;
@@ -1063,7 +1079,7 @@ $('#pTest').onclick = async () => {
 $('#pClearKeys').onclick = async () => {
   if (!editing.id || !confirm('Remove the saved keys for this provider?')) return;
   const r = await window.pip.saveProvider({ ...readEditor(), clearKeys: true });
-  settings = r.settings; renderProviders(r); $('#pKey').placeholder = 'paste key'; $('#pStatus').textContent = 'Keys removed.';
+  settings = r.settings; renderProviders(r); renderKeyList({}); $('#pStatus').textContent = 'Keys removed.';
 };
 $('#pSave').onclick = async () => {
   const d = readEditor();

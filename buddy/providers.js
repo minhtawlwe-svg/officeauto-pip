@@ -40,6 +40,33 @@ const usable = (p) => (PRESETS[p.preset] || {}).noKey || keysOf(p).keys.length >
 
 class KeyError extends Error { }          // this key failed (bad / out of quota): try the next key
 
+// ---- key rotation: spread requests over all keys (round-robin) and push keys that just hit a limit to the back
+const keyState = new Map();   // key -> { until: ms timestamp, fails }
+const nextStart = new Map();  // provider id -> index of the key to start with next time
+const lastKeys = new Map();   // provider id -> its key list (to advance the round-robin)
+function orderKeys(p, keys) {
+  if (keys.length < 2) return keys;
+  lastKeys.set(p.id, keys);
+  const start = (nextStart.get(p.id) || 0) % keys.length;
+  const rot = [...keys.slice(start), ...keys.slice(0, start)];
+  const now = Date.now(), ready = rot.filter((k) => !((keyState.get(k)?.until || 0) > now));
+  return [...ready, ...rot.filter((k) => !ready.includes(k))];   // limited keys are still tried, just last
+}
+// rate limit: rest 1, 2, 4 ... min (max 1 h); rejected key: rest 6 h
+function keyFailed(key, status) {
+  const s = keyState.get(key) || { fails: 0 };
+  s.fails++;
+  s.until = Date.now() + (status === 429 ? Math.min(60e3 * 2 ** (s.fails - 1), 3600e3) : 6 * 3600e3);
+  keyState.set(key, s);
+}
+function keyWorked(p, key) {
+  if (key) keyState.delete(key);
+  const keys = lastKeys.get(p.id);
+  if (!keys || keys.length < 2) return;
+  const i = key ? keys.indexOf(key) : (nextStart.get(p.id) || 0) % keys.length;
+  nextStart.set(p.id, (i + 1) % keys.length);   // next request starts with the following key
+}
+
 module.exports = function createProviders({ net }) {
   const fetchFn = (url, init) => net.fetch(url, init);   // Chromium network stack: honours the app proxy
 
@@ -101,11 +128,15 @@ module.exports = function createProviders({ net }) {
           images: req.files || [], models, max_output_tokens: 4096, temperature: 0.6,
         }),
       });
-      if (res.status === 429) throw new KeyError('Gemini free quota is used up (or the key was revoked). Wait a while or add another key.');
+      if (res.status === 429) {   // the relay already tried every key we sent
+        keys.forEach((k) => keyFailed(k, 429));
+        throw new KeyError(keys.length > 1 ? `All ${keys.length} Gemini keys hit their free limit. Wait a while or add more keys.` : 'Gemini free quota is used up (or the key was revoked). Wait a while or add another key.');
+      }
       if (res.status === 401) throw new KeyError('Gemini rejected the API key.');
       if (!res.ok) throw new Error(`Relay ${res.status}: ${(await res.text()).slice(0, 300)}`);
       let full = '';
       await readStream(res.body, (t) => { full += t; onText(t); });
+      keyWorked(p, null);
       return full;
     }
     const contents = (req.history || []).map((h) => ({ role: h.role === 'user' ? 'user' : 'model', parts: [{ text: h.text }] }));
@@ -121,13 +152,17 @@ module.exports = function createProviders({ net }) {
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
         body: JSON.stringify({ systemInstruction: { parts: [{ text: req.system }] }, contents, generationConfig: { temperature: 0.6, maxOutputTokens: 4096 } }),
       });
-      if ([429, 404, 400, 403].includes(res.status)) { lastErr = `${model} ${mask(key)}: ${res.status}`; continue; }
+      if ([429, 404, 400, 403].includes(res.status)) {
+        if (res.status === 429 || res.status === 403) keyFailed(key, res.status);
+        lastErr = `${model} ${mask(key)}: ${res.status}`; continue;
+      }
       if (!res.ok) throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 300)}`);
       let full = '';
       await readSSE(res.body, (j) => {
         const t = (j.candidates?.[0]?.content?.parts || []).map((x) => x.text || '').join('');
         if (t) { full += t; onText(t); }
       });
+      keyWorked(p, key);
       return full;
     }
     throw new KeyError('Gemini: all keys/models failed (' + lastErr + ').');
@@ -154,10 +189,15 @@ module.exports = function createProviders({ net }) {
       let res;
       try { res = await fetchFn(url, { method: 'POST', headers, body: JSON.stringify({ model: p.model, messages, stream: true }) }); }
       catch (e) { throw new Error(`Can't reach ${p.name} (${e.message}).` + (p.preset === 'ollama' ? ' Is Ollama running?' : '')); }
-      if ([401, 403, 429].includes(res.status)) { if (keys.length > 1) continue; throw new KeyError(`${p.name} ${res.status}: ${(await res.text()).slice(0, 200)}`); }
+      if ([401, 403, 429].includes(res.status)) {
+        if (key) keyFailed(key, res.status);
+        if (keys.length > 1) continue;
+        throw new KeyError(`${p.name} ${res.status}: ${(await res.text()).slice(0, 200)}`);
+      }
       if (!res.ok) throw new Error(`${p.name} ${res.status}: ${(await res.text()).slice(0, 300)}`);
       let full = '';
       await readSSE(res.body, (j) => { const t = j.choices?.[0]?.delta?.content; if (t) { full += t; onText(t); } });
+      keyWorked(p, key);
       return full;
     }
     throw new KeyError(`${p.name}: every key was rejected or out of quota.`);
@@ -192,11 +232,12 @@ module.exports = function createProviders({ net }) {
         }
         const msg = await stream.finalMessage();
         if (msg.stop_reason === 'refusal') throw new Error('Claude declined this request' + (msg.stop_details?.explanation ? `: ${msg.stop_details.explanation}` : '.'));
+        keyWorked(p, key);
         return full;
       } catch (e) {
-        if (e instanceof Anthropic.AuthenticationError) { if (keys.length > 1) continue; throw new KeyError('Claude rejected the API key.'); }
+        if (e instanceof Anthropic.AuthenticationError) { keyFailed(key, 401); if (keys.length > 1) continue; throw new KeyError('Claude rejected the API key.'); }
         if (e instanceof Anthropic.PermissionDeniedError) throw new KeyError('Claude: this key has no access (' + e.message + ').');
-        if (e instanceof Anthropic.RateLimitError) { if (keys.length > 1) continue; throw new KeyError('Claude rate limit / credit exhausted. Try again later.'); }
+        if (e instanceof Anthropic.RateLimitError) { keyFailed(key, 429); if (keys.length > 1) continue; throw new KeyError('Claude rate limit / credit exhausted. Try again later.'); }
         if (e instanceof Anthropic.NotFoundError) throw new Error(`Claude model "${model}" not found - pick another in Settings.`);
         if (e instanceof Anthropic.APIConnectionError) throw new Error("Can't reach Claude (network blocked? try the Proxy setting).");
         throw e;
@@ -207,7 +248,7 @@ module.exports = function createProviders({ net }) {
 
   // ------------------------------------------------------------ public API
   function askOne(p, req, onText, keysOverride) {
-    const keys = keysOverride || keysOf(p).keys;
+    const keys = keysOverride || orderKeys(p, keysOf(p).keys);
     const preset = PRESETS[p.preset] || {};
     if (!keys.length && !preset.noKey) throw new KeyError(`No API key for ${p.name}. Add one in Settings.`);
     if (req.audio && p.type !== 'gemini') throw new Error('Voice needs a Gemini provider.');

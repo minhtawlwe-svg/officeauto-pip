@@ -98,7 +98,9 @@ function saveProvider(draft) {
   p.model = (draft.model || '').trim();
   if (p.type === 'gemini') { p.mode = draft.mode === 'direct' ? 'direct' : 'relay'; p.relayUrl = (draft.relayUrl || preset.relayUrl).trim(); }
   else if (p.type === 'openai') p.baseUrl = (draft.baseUrl || preset.baseUrl || '').trim();
-  if (typeof draft.apiKey === 'string' && draft.apiKey.trim()) p.keys = AI.parseKeys(draft.apiKey);
+  // new keys are ADDED to the saved ones (the app rotates through all of them when one hits its limit)
+  if (typeof draft.apiKey === 'string' && draft.apiKey.trim()) p.keys = AI.parseKeys([...(p.keys || []), ...AI.parseKeys(draft.apiKey)].join('\n'));
+  if (Number.isInteger(draft.removeKey)) p.keys = (p.keys || []).filter((_, i) => i !== draft.removeKey);
   if (draft.clearKeys) p.keys = [];
   saveSettings();
   return p;
