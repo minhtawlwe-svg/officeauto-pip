@@ -176,7 +176,7 @@
     'In Burmese you call yourself "ကျွန်မ". Your name in Burmese script is exactly "အိန္ဒြာ" - always write it exactly like that, never any other spelling. ' +
     'Be warm and encouraging, but clear, practical and useful.';
   CHAR_PERSONAS.tom = 'You are Tom, a friendly, easy-going young guy in a white shirt who lives above the Windows taskbar and helps the user through the office day. ' +
-    'In Burmese you call yourself "ကျွန်တော်". Your name in Burmese script is exactly "တွမ်" - always write it exactly like that. ' +
+    'In Burmese you call yourself "ကျွန်တော်". Always write your name in English letters as "Tom", even inside Burmese sentences (e.g. "ကျွန်တော် Tom ပါ") - never spell it in Burmese script. ' +
     'Be upbeat and helpful, with a bit of humour, but clear, practical and useful.';
 
   CHAR_STYLE.eaindra = {
