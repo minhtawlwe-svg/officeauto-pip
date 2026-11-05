@@ -63,7 +63,8 @@
     <ellipse class="shadow" cx="80" cy="163" rx="34" ry="5"/>
     <g class="bob">
       <!-- long hair style sits behind everything -->
-      <path class="hair hLong" d="M55 57Q50 100 57 128L103 128Q110 100 105 57Z"/>
+      <path class="hair hLong" d="M61 70Q57 100 60 128L66.5 128Q63.5 100 66.5 76Z"/><path class="hair hLong" d="M99 70Q103 100 100 128L93.5 128Q96.5 100 93.5 76Z"/>
+      <path class="hair hTwin" d="M57 66Q50 90 56 114Q59 119 62 114Q58 92 63 72Z"/><path class="hair hTwin" d="M103 66Q110 90 104 114Q101 119 98 114Q102 92 97 72Z"/>
       <!-- thin legs + small blue sandals -->
       <rect class="skin" x="72" y="134" width="6" height="22" rx="3"/><rect class="skin" x="82" y="134" width="6" height="22" rx="3"/>
       <ellipse class="soleB" cx="74.5" cy="157.5" rx="6" ry="2.6"/><ellipse class="soleB" cx="85.5" cy="157.5" rx="6" ry="2.6"/>
@@ -87,13 +88,18 @@
       <rect class="neck" x="76.5" y="76" width="7" height="10" rx="3"/>
       <ellipse class="collarW" cx="75.5" cy="87" rx="5.8" ry="3.2"/><ellipse class="collarW" cx="84.5" cy="87" rx="5.8" ry="3.2"/>
       <circle class="btn" cx="80" cy="94" r="1.5"/><circle class="btn" cx="80" cy="99" r="1.5"/><circle class="btn" cx="80" cy="104" r="1.5"/>
+      <g class="hair hBraid"><ellipse cx="66" cy="80" rx="4.6" ry="5.6"/><ellipse cx="65.2" cy="89" rx="4.4" ry="5.4"/><ellipse cx="64.5" cy="98" rx="4.2" ry="5.2"/><ellipse cx="64" cy="106.5" rx="4" ry="5"/><path d="M61.5 114Q64 123 66.5 114Z"/></g><circle class="hTie hBraidTie" cx="63.8" cy="112.5" r="2.4"/>
       <!-- head: big and round like a child -->
       <g class="kidHead" transform="translate(80 80) scale(0.85) translate(-80 -80)">
         <circle class="skin" cx="52" cy="58" r="6"/><circle class="skin" cx="108" cy="58" r="6"/>
         <ellipse class="face" cx="80" cy="55" rx="28" ry="27"/>
-        <path class="hair hPony" d="M103 34Q124 38 120 68Q117 84 109 92Q113 70 99 50Z"/><circle class="hTie" cx="106" cy="38" r="3.6"/>
+        <path class="hair hPony" d="M104 36Q118 42 116 68Q114 84 109 94Q111 70 101 50Z"/><circle class="hTie hPonyTie" cx="106" cy="38" r="3.6"/>
+        <circle class="hair hHalf" cx="80" cy="17" r="9.5"/><circle class="hTie hHalfTie" cx="80" cy="26" r="3"/>
+        <circle class="hTie hTwinTie" cx="55" cy="66" r="3.4"/><circle class="hTie hTwinTie" cx="105" cy="66" r="3.4"/>
         <g class="hair hBuns"><circle cx="57" cy="27" r="11"/><circle cx="103" cy="27" r="11"/></g>
-        <path class="hair" d="M50 68Q45 23 80 21Q115 23 110 68L104 68L104 46Q80 50 56 46L56 68Z"/>
+        <path class="hair hPixie" d="M51 56Q46 24 80 21Q114 24 109 56Q105 41 93 38Q81 47 63 44Q56 46 51 56Z"/>
+        <path class="hair hSide" d="M50 66Q45 23 80 21Q115 23 110 66L104 66L104 44Q88 53 66 39Q59 45 56 52L56 66Z"/>
+        <path class="hair hFront" d="M50 68Q45 23 80 21Q115 23 110 68L104 68L104 46Q80 50 56 46L56 68Z"/>
         <path class="hairShine" d="M62 31Q72 27 84 29M64 38Q76 34 90 36" fill="none"/>
         <path class="brow" d="M63 47l11 3M97 47l-11 3" fill="none"/>
         <g class="eyes">
@@ -124,12 +130,30 @@
   .char-tom .shirt { fill: #fdfdfd; stroke: #d6dbe1; stroke-width: 1.3; stroke-linejoin: round; }
   .char-tom .shirtShade { fill: rgba(40,60,90,.07); }
   /* hair styles (Settings > Look > Hair style) */
-  .char-tom .hSpiky, .char-tom .hCurly, .char-tom .hPart, .char-eaindra .hLong, .char-eaindra .hPony, .char-eaindra .hTie, .char-eaindra .hBuns { display: none; }
+  .char-tom .hSpiky, .char-tom .hCurly, .char-tom .hPart { display: none; }
   #pip[data-hair="spiky"] .char-tom .hSpiky, #pip[data-hair="curly"] .char-tom .hCurly, #pip[data-hair="neat"] .char-tom .hPart { display: inline; }
   #pip[data-hair="spiky"] .char-tom .hTuft, #pip[data-hair="neat"] .char-tom .hTuft, #pip[data-hair="curly"] .char-tom .hTuft { display: none; }
   .char-tom .hPart { stroke: #555; stroke-width: 1.6; stroke-linecap: round; }
-  #pip[data-hair="long"] .char-eaindra .hLong, #pip[data-hair="ponytail"] .char-eaindra .hPony, #pip[data-hair="ponytail"] .char-eaindra .hTie, #pip[data-hair="buns"] .char-eaindra .hBuns { display: inline; }
-  #pip[data-hair="long"] .char-eaindra .hLocks, #pip[data-hair="ponytail"] .char-eaindra .hLocks, #pip[data-hair="buns"] .char-eaindra .hLocks { display: none; }
+
+  /* Eaindra hair styles: extra parts are hidden until their style is chosen */
+  .char-eaindra .hLong, .char-eaindra .hTwin, .char-eaindra .hBraid, .char-eaindra .hPony, .char-eaindra .hBuns, .char-eaindra .hPixie, .char-eaindra .hSide, .char-eaindra .hHalf, .char-eaindra .hTie { display: none; }
+  #pip[data-hair="shortbob"] .char-eaindra .hLocks { display: none; }
+  #pip[data-hair="pixie"] .char-eaindra .hPixie { display: inline; }
+  #pip[data-hair="pixie"] .char-eaindra .hLocks, #pip[data-hair="pixie"] .char-eaindra .hFront { display: none; }
+  #pip[data-hair="sidepart"] .char-eaindra .hSide { display: inline; }
+  #pip[data-hair="sidepart"] .char-eaindra .hLocks, #pip[data-hair="sidepart"] .char-eaindra .hFront { display: none; }
+  #pip[data-hair="long"] .char-eaindra .hLong { display: inline; }
+  #pip[data-hair="long"] .char-eaindra .hLocks { display: none; }
+  #pip[data-hair="braid"] .char-eaindra .hBraid, #pip[data-hair="braid"] .char-eaindra .hBraidTie { display: inline; }
+  #pip[data-hair="braid"] .char-eaindra .hLocks { display: none; }
+  #pip[data-hair="twintails"] .char-eaindra .hTwin, #pip[data-hair="twintails"] .char-eaindra .hTwinTie { display: inline; }
+  #pip[data-hair="twintails"] .char-eaindra .hLocks { display: none; }
+  #pip[data-hair="halfup"] .char-eaindra .hHalf, #pip[data-hair="halfup"] .char-eaindra .hHalfTie, #pip[data-hair="halfup"] .char-eaindra .hLong { display: inline; }
+  #pip[data-hair="halfup"] .char-eaindra .hLocks { display: none; }
+  #pip[data-hair="ponytail"] .char-eaindra .hPony, #pip[data-hair="ponytail"] .char-eaindra .hPonyTie { display: inline; }
+  #pip[data-hair="ponytail"] .char-eaindra .hLocks { display: none; }
+  #pip[data-hair="buns"] .char-eaindra .hBuns { display: inline; }
+  #pip[data-hair="buns"] .char-eaindra .hLocks { display: none; }
   .char-eaindra .hTie { fill: #e64a5d; }
   .char-tom .collar { fill: #eef1f4; stroke: #c9d0d8; stroke-width: 1; }
   .char-tom .zip { stroke: #9aa6b2; stroke-width: 1.4; }
@@ -215,7 +239,8 @@
   CHAR_LOOKS.eaindra = {
     slots: { hair: ['.char-eaindra .hair'], dress: ['.char-eaindra .dress'], band: ['.char-eaindra .band'], shoes: ['.char-eaindra .strap|stroke'], skin: ['.char-eaindra .skin', '.char-eaindra .face', '.char-eaindra .neck', '.char-eaindra .armSkin|stroke'] },
     heads: [{ l: [71.5, 61.3], r: [88.5, 61.3], top: 29.9, w: 53 }],
-    hairs: [['bob', 'Bob (default)'], ['long', 'Long'], ['ponytail', 'Ponytail'], ['buns', 'Two buns']],
+    hairs: [['bob', 'Bob (default)'], ['shortbob', 'Short bob'], ['pixie', 'Pixie (very short)'], ['sidepart', 'Side-swept short'],
+      ['long', 'Long (slim)'], ['braid', 'Side braid'], ['twintails', 'Twin tails'], ['halfup', 'Half-up bun'], ['ponytail', 'Ponytail'], ['buns', 'Two buns']],
   };
   SLOT_LABELS.band = 'Belt';
 
