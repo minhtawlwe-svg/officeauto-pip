@@ -11,27 +11,27 @@
     <ellipse class="shadow" cx="80" cy="163" rx="36" ry="5"/>
     <g class="bob">
       <!-- sneakers -->
-      <rect class="shoe" x="56" y="150" width="23" height="10" rx="5"/><rect class="sole" x="56" y="156.5" width="23" height="4.5" rx="2"/>
-      <rect class="shoe" x="81" y="150" width="23" height="10" rx="5"/><rect class="sole" x="81" y="156.5" width="23" height="4.5" rx="2"/>
-      <path class="lace" d="M64 153h7M64 155.5h7M89 153h7M89 155.5h7" fill="none"/>
-      <!-- khaki trousers (longer legs) -->
-      <rect class="pantL" x="60" y="117" width="19.5" height="35"/><rect class="pantR" x="80.5" y="117" width="19.5" height="35"/>
-      <rect class="cuff" x="60" y="146" width="19.5" height="6" rx="2"/><rect class="cuff" x="80.5" y="146" width="19.5" height="6" rx="2"/>
-      <!-- arms: outlined, coming out of the sleeves (left hangs, right is the waving one) -->
-      <path class="armLine" d="M54 96Q50 111 52 125" fill="none"/><path class="armSkin" d="M54 96Q50 111 52 125" fill="none"/>
-      <circle class="skin" cx="52" cy="128.5" r="4.8"/>
+      <rect class="shoe" x="63" y="149" width="17" height="9" rx="4.5"/><rect class="sole" x="63" y="155" width="17" height="4" rx="2"/>
+      <rect class="shoe" x="80" y="149" width="17" height="9" rx="4.5"/><rect class="sole" x="80" y="155" width="17" height="4" rx="2"/>
+      <path class="lace" d="M68 152h6M86 152h6" fill="none"/>
+      <!-- khaki trousers: thin child legs -->
+      <rect class="pantL" x="67" y="115" width="12.5" height="36"/><rect class="pantR" x="80.5" y="115" width="12.5" height="36"/>
+      <rect class="cuff" x="67" y="146" width="12.5" height="5" rx="2"/><rect class="cuff" x="80.5" y="146" width="12.5" height="5" rx="2"/>
+      <!-- thin arms out of the sleeves (left hangs, right waves) -->
+      <path class="armLine" d="M61 98Q58.5 110 59.5 121" fill="none"/><path class="armSkin" d="M61 98Q58.5 110 59.5 121" fill="none"/>
+      <circle class="skin" cx="59.5" cy="123.5" r="3.9"/>
       <g class="armR">
-        <path class="armLine" d="M106 96Q110 111 108 125" fill="none"/><path class="armSkin" d="M106 96Q110 111 108 125" fill="none"/>
-        <circle class="skin" cx="108" cy="128.5" r="4.8"/>
+        <path class="armLine" d="M99 98Q101.5 110 100.5 121" fill="none"/><path class="armSkin" d="M99 98Q101.5 110 100.5 121" fill="none"/>
+        <circle class="skin" cx="100.5" cy="123.5" r="3.9"/>
       </g>
-      <!-- white shirt: torso + short sleeves -->
-      <path class="shirt" d="M61 82Q52 84 47 98L57 102L61 93Z"/><path class="shirt" d="M99 82Q108 84 113 98L103 102L99 93Z"/>
-      <path class="shirt" d="M60 82Q80 77 100 82L102 121L58 121Z"/>
-      <path class="shirtShade" d="M90 80L100 82L102 121L92 121Z"/>
-      <path class="collar" d="M72 79L80 87L88 79L85 77L80 82L75 77Z"/>
-      <path class="zip" d="M80 87V103" fill="none"/><circle class="zipDot" cx="80" cy="95" r="1.3"/><circle class="zipDot" cx="80" cy="100" r="1.3"/>
-      <!-- head: same face, a little smaller so he looks taller -->
-      <rect class="neck" x="75" y="73" width="10" height="10" rx="3"/>
+      <!-- white shirt: slim torso + short sleeves -->
+      <path class="shirt" d="M68 86Q61 88 57 99L64.5 101.5L68 94Z"/><path class="shirt" d="M92 86Q99 88 103 99L95.5 101.5L92 94Z"/>
+      <path class="shirt" d="M67 86Q80 82 93 86L94.5 117L65.5 117Z"/>
+      <path class="shirtShade" d="M87 84L93 86L94.5 117L88.5 117Z"/>
+      <path class="collar" d="M74 83L80 89L86 83L84 81L80 85L76 81Z"/>
+      <path class="zip" d="M80 89V103" fill="none"/><circle class="zipDot" cx="80" cy="96" r="1.1"/><circle class="zipDot" cx="80" cy="100.5" r="1.1"/>
+      <!-- head: big and round like a child, on a slim body -->
+      <rect class="neck" x="76" y="75" width="8" height="10" rx="3"/>
       <g class="tomHead" transform="translate(80 80) scale(0.82) translate(-80 -80)">
         <circle class="skin" cx="50" cy="58" r="7"/><circle class="skin" cx="110" cy="58" r="7"/>
         <ellipse class="face" cx="80" cy="55" rx="30" ry="28"/>
@@ -62,44 +62,51 @@
   <svg class="char-eaindra" viewBox="0 0 160 170" width="132" height="140" aria-label="Eaindra">
     <ellipse class="shadow" cx="80" cy="163" rx="34" ry="5"/>
     <g class="bob">
-      <path class="hair hLong" d="M51 52Q45 100 53 132L107 132Q115 100 109 52Z"/>
-      <!-- legs + blue sandals -->
-      <rect class="skin" x="68" y="134" width="8" height="24" rx="3"/><rect class="skin" x="84" y="134" width="8" height="24" rx="3"/>
-      <ellipse class="soleB" cx="72" cy="159" rx="8" ry="3.2"/><ellipse class="soleB" cx="88" cy="159" rx="8" ry="3.2"/>
-      <path class="strap" d="M66 154l6 4l6-4M82 154l6 4l6-4" fill="none"/>
-      <!-- hair falling behind the shoulders -->
-      <path class="hair hLocks" d="M58 66L56 98L67 97L68 76Z"/><path class="hair hLocks" d="M102 66L104 98L93 97L92 76Z"/>
-      <!-- pleated skirt -->
-      <path class="dress" d="M60 118L100 118L112 140L48 140Z"/>
-      <path class="pleat" d="M68 120L63 139M76 120L74 139M84 120L86 139M92 120L97 139" fill="none"/>
-      <rect class="band" x="60" y="113" width="40" height="7" rx="2"/>
-      <!-- left arm down, right arm waving -->
-      <rect class="skin" x="51" y="96" width="8" height="27" rx="4"/><circle class="skin" cx="55" cy="125" r="5"/>
-      <g class="armR"><path class="armUp" d="M104 95L117 75" fill="none"/><circle class="skin" cx="118.5" cy="71" r="5.5"/></g>
-      <!-- bodice, puff sleeves, collar, buttons -->
-      <rect class="dress" x="61" y="86" width="38" height="29" rx="4"/>
-      <circle class="dress" cx="59" cy="93" r="8.5"/><circle class="dress" cx="101" cy="93" r="8.5"/>
-      <rect class="neck" x="75" y="78" width="10" height="10" rx="3"/>
-      <ellipse class="collarW" cx="74" cy="89" rx="7.5" ry="4"/><ellipse class="collarW" cx="86" cy="89" rx="7.5" ry="4"/>
-      <circle class="btn" cx="80" cy="97" r="1.9"/><circle class="btn" cx="80" cy="103" r="1.9"/><circle class="btn" cx="80" cy="109" r="1.9"/>
-      <!-- head: black bob with straight bangs -->
-      <circle class="skin" cx="52" cy="58" r="6"/><circle class="skin" cx="108" cy="58" r="6"/>
-      <ellipse class="face" cx="80" cy="55" rx="28" ry="27"/>
-      <path class="hair hPony" d="M103 34Q124 38 120 68Q117 84 109 92Q113 70 99 50Z"/><circle class="hTie" cx="106" cy="38" r="3.6"/>
-      <g class="hair hBuns"><circle cx="57" cy="27" r="11"/><circle cx="103" cy="27" r="11"/></g>
-      <path class="hair" d="M50 68Q45 23 80 21Q115 23 110 68L104 68L104 46Q80 50 56 46L56 68Z"/>
-      <path class="hairShine" d="M62 31Q72 27 84 29M64 38Q76 34 90 36" fill="none"/>
-      <path class="brow" d="M63 47l11 3M97 47l-11 3" fill="none"/>
-      <g class="eyes">
-        <g class="eye"><ellipse class="pupil" cx="70" cy="58" rx="4.3" ry="5.2"/><circle class="shine" cx="71.7" cy="56" r="1.5"/></g>
-        <g class="eye"><ellipse class="pupil" cx="90" cy="58" rx="4.3" ry="5.2"/><circle class="shine" cx="91.7" cy="56" r="1.5"/></g>
-        <path class="lid" d="M65 58.5q5 4 10 0M85 58.5q5 4 10 0" fill="none"/>
+      <!-- long hair style sits behind everything -->
+      <path class="hair hLong" d="M55 57Q50 100 57 128L103 128Q110 100 105 57Z"/>
+      <!-- thin legs + small blue sandals -->
+      <rect class="skin" x="72" y="134" width="6" height="22" rx="3"/><rect class="skin" x="82" y="134" width="6" height="22" rx="3"/>
+      <ellipse class="soleB" cx="74.5" cy="157.5" rx="6" ry="2.6"/><ellipse class="soleB" cx="85.5" cy="157.5" rx="6" ry="2.6"/>
+      <path class="strap" d="M70 154l4.5 3l4.5-3M81 154l4.5 3l4.5-3" fill="none"/>
+      <!-- hair falling behind the shoulders (bob) -->
+      <path class="hair hLocks" d="M61.3 68.1L59.6 95.3L69 94.5L69.8 76.6Z"/><path class="hair hLocks" d="M98.7 68.1L100.4 95.3L91 94.5L90.2 76.6Z"/>
+      <!-- slim pleated skirt -->
+      <path class="dress" d="M66 114L94 114L102 138L58 138Z"/>
+      <path class="pleat" d="M72 116L68.5 137M78 116L77 137M83 116L84 137M89 116L92.5 137" fill="none"/>
+      <rect class="band" x="66" y="110" width="28" height="5.5" rx="2"/>
+      <!-- thin arms: left down, right waving -->
+      <path class="armLine" d="M63 94Q60 106 60.5 117" fill="none"/><path class="armSkin" d="M63 94Q60 106 60.5 117" fill="none"/>
+      <circle class="skin" cx="60.5" cy="119.5" r="3.8"/>
+      <g class="armR">
+        <path class="armLine" d="M97 93L108 75" fill="none"/><path class="armSkin" d="M97 93L108 75" fill="none"/>
+        <circle class="skin" cx="109.5" cy="72" r="4.4"/>
       </g>
-      <ellipse class="cheek" cx="61" cy="66" rx="5.5" ry="3"/><ellipse class="cheek" cx="99" cy="66" rx="5.5" ry="3"/>
-      <path class="noseLine" d="M79 63q-1 3 2 3" fill="none"/>
-      <path class="mouth smile" d="M74 69Q80 74 86 69" fill="none"/>
-      <ellipse class="mouth talk" cx="80" cy="71" rx="3.6" ry="2.8"/>
-      <path class="mouth flat" d="M75 71h10" fill="none"/>
+      <!-- bodice, small puff sleeves, collar, buttons -->
+      <rect class="dress" x="66" y="85" width="28" height="27" rx="4"/>
+      <circle class="dress" cx="64.5" cy="90" r="6.2"/><circle class="dress" cx="95.5" cy="90" r="6.2"/>
+      <rect class="neck" x="76.5" y="76" width="7" height="10" rx="3"/>
+      <ellipse class="collarW" cx="75.5" cy="87" rx="5.8" ry="3.2"/><ellipse class="collarW" cx="84.5" cy="87" rx="5.8" ry="3.2"/>
+      <circle class="btn" cx="80" cy="94" r="1.5"/><circle class="btn" cx="80" cy="99" r="1.5"/><circle class="btn" cx="80" cy="104" r="1.5"/>
+      <!-- head: big and round like a child -->
+      <g class="kidHead" transform="translate(80 80) scale(0.85) translate(-80 -80)">
+        <circle class="skin" cx="52" cy="58" r="6"/><circle class="skin" cx="108" cy="58" r="6"/>
+        <ellipse class="face" cx="80" cy="55" rx="28" ry="27"/>
+        <path class="hair hPony" d="M103 34Q124 38 120 68Q117 84 109 92Q113 70 99 50Z"/><circle class="hTie" cx="106" cy="38" r="3.6"/>
+        <g class="hair hBuns"><circle cx="57" cy="27" r="11"/><circle cx="103" cy="27" r="11"/></g>
+        <path class="hair" d="M50 68Q45 23 80 21Q115 23 110 68L104 68L104 46Q80 50 56 46L56 68Z"/>
+        <path class="hairShine" d="M62 31Q72 27 84 29M64 38Q76 34 90 36" fill="none"/>
+        <path class="brow" d="M63 47l11 3M97 47l-11 3" fill="none"/>
+        <g class="eyes">
+          <g class="eye"><ellipse class="pupil" cx="70" cy="58" rx="4.3" ry="5.2"/><circle class="shine" cx="71.7" cy="56" r="1.5"/></g>
+          <g class="eye"><ellipse class="pupil" cx="90" cy="58" rx="4.3" ry="5.2"/><circle class="shine" cx="91.7" cy="56" r="1.5"/></g>
+          <path class="lid" d="M65 58.5q5 4 10 0M85 58.5q5 4 10 0" fill="none"/>
+        </g>
+        <ellipse class="cheek" cx="61" cy="66" rx="5.5" ry="3"/><ellipse class="cheek" cx="99" cy="66" rx="5.5" ry="3"/>
+        <path class="noseLine" d="M79 63q-1 3 2 3" fill="none"/>
+        <path class="mouth smile" d="M74 69Q80 74 86 69" fill="none"/>
+        <ellipse class="mouth talk" cx="80" cy="71" rx="3.6" ry="2.8"/>
+        <path class="mouth flat" d="M75 71h10" fill="none"/>
+      </g>
     </g>${extras}
   </svg>`;
 
@@ -109,8 +116,8 @@
   .char-tom .neck { fill: #e6b48a; }
   .char-tom .hair { fill: #1e1e1e; }
   .char-tom .hairShine, .char-eaindra .hairShine { stroke: #4a4a4a; stroke-width: 2.2; stroke-linecap: round; }
-  .char-tom .armLine { stroke: #c9946b; stroke-width: 10.5; stroke-linecap: round; }
-  .char-tom .armSkin { stroke: #f2c7a0; stroke-width: 8; stroke-linecap: round; }
+  .char-tom .armLine { stroke: #c9946b; stroke-width: 7.5; stroke-linecap: round; }
+  .char-tom .armSkin { stroke: #f2c7a0; stroke-width: 5.5; stroke-linecap: round; }
   #pip svg.char-tom g.armR { transform-box: fill-box; transform-origin: 50% 0%; }   /* pivot at the shoulder */
   #pip.happy svg.char-tom g.armR { animation: tomWave .5s 4 alternate ease-in-out; }   /* raise the hand and wave */
   @keyframes tomWave { 0% { transform: rotate(-135deg); } 100% { transform: rotate(-165deg); } }
@@ -141,7 +148,11 @@
   .char-eaindra .pleat { stroke: #6aa8d4; stroke-width: 1.3; }
   .char-eaindra .collarW { fill: #fff; stroke: #cfd8e0; stroke-width: 1; }
   .char-eaindra .btn { fill: #fff; }
-  .char-eaindra .armUp { stroke: #f3cba4; stroke-width: 8.5; stroke-linecap: round; }
+  .char-eaindra .armLine { stroke: #cf9a70; stroke-width: 7.5; stroke-linecap: round; }
+  .char-eaindra .armSkin { stroke: #f3cba4; stroke-width: 5.5; stroke-linecap: round; }
+  #pip svg.char-eaindra g.armR { transform-box: fill-box; transform-origin: 0% 100%; }
+  #pip.happy svg.char-eaindra g.armR { animation: eWave .45s 4 alternate ease-in-out; }
+  @keyframes eWave { 0% { transform: rotate(-14deg); } 100% { transform: rotate(14deg); } }
   .char-eaindra .soleB { fill: #d3e6f5; }
   .char-eaindra .strap { stroke: #4a90c8; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   .char-tom .pupil, .char-eaindra .pupil { fill: #1d1d1d; }
@@ -202,8 +213,8 @@
     hairs: [['tuft', 'Tuft (default)'], ['spiky', 'Spiky'], ['neat', 'Neat side part'], ['curly', 'Curly']],
   };
   CHAR_LOOKS.eaindra = {
-    slots: { hair: ['.char-eaindra .hair'], dress: ['.char-eaindra .dress'], band: ['.char-eaindra .band'], shoes: ['.char-eaindra .strap|stroke'], skin: ['.char-eaindra .skin', '.char-eaindra .face', '.char-eaindra .neck', '.char-eaindra .armUp|stroke'] },
-    heads: [{ l: [70, 58], r: [90, 58], top: 21, w: 62 }],
+    slots: { hair: ['.char-eaindra .hair'], dress: ['.char-eaindra .dress'], band: ['.char-eaindra .band'], shoes: ['.char-eaindra .strap|stroke'], skin: ['.char-eaindra .skin', '.char-eaindra .face', '.char-eaindra .neck', '.char-eaindra .armSkin|stroke'] },
+    heads: [{ l: [71.5, 61.3], r: [88.5, 61.3], top: 29.9, w: 53 }],
     hairs: [['bob', 'Bob (default)'], ['long', 'Long'], ['ponytail', 'Ponytail'], ['buns', 'Two buns']],
   };
   SLOT_LABELS.band = 'Belt';
