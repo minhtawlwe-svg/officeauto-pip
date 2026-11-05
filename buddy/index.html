@@ -126,6 +126,14 @@
     </div>
     <label class="row"><input id="sSound" type="checkbox"> Character sounds (meow, woof, honk...)</label>
     <label class="row"><input id="sMoments" type="checkbox"> Fun moments (a cat visits, butterflies, tea breaks...)</label>
+    <label>Shortcut keys <span class="pNote">(+ Space show/hide, V talk, C clipboard, S settings) - change it if another app uses the same keys</span>
+      <select id="sHotkey">
+        <option value="Ctrl+Alt">Ctrl + Alt (default)</option>
+        <option value="Ctrl+Alt+Shift">Ctrl + Alt + Shift</option>
+        <option value="Ctrl+Shift">Ctrl + Shift</option>
+        <option value="Alt+Shift">Alt + Shift</option>
+      </select>
+    </label>
     <label>Sound volume
       <div class="inline"><input id="sVolume" type="range" min="0" max="1" step="0.05"><button id="sSoundTest" type="button">&#128264; Play</button></div>
     </label>

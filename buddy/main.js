@@ -30,6 +30,7 @@ const DEFAULTS = {
   soundVolume: 0.6,
   naturalVoice: true,                                  // Microsoft neural voices (incl. Burmese) when edge-tts is installed
   charScale: 1,                                        // character size (0.7 - 1.6)
+  hotkeyMod: 'Ctrl+Alt',                               // shortcut keys: Ctrl+Alt / Ctrl+Alt+Shift / Ctrl+Shift / Alt+Shift (+ Space V C S)
   moments: true,                                       // fun idle moments (cat visit, butterfly, tea...)
   looks: {},                                           // wardrobe: per-character colours / eyes / accessory / hair
   aboutMe: '',                                         // what the user wrote about themselves
@@ -125,7 +126,7 @@ function applyAutoStart() {
 
 function publicSettings() {
   const a = activeProvider();
-  return { ...settings, hasKey: !!a && AI.usable(a), activeName: a ? a.name : '', activeModel: a ? a.model : '',
+  return { ...settings, hotkeyMod: hotkeyMod(), hotkeyFailed, hasKey: !!a && AI.usable(a), activeName: a ? a.name : '', activeModel: a ? a.model : '',
     activeMode: a && a.type === 'gemini' ? a.mode : '', hasGemini: providers.some((p) => p.type === 'gemini' && AI.usable(p)) };
 }
 
@@ -171,10 +172,31 @@ function createTray() {
   refreshTray();
 }
 
+// ---- global shortcut keys: the modifier is a setting, so two buddy apps on one PC don't fight over the same keys
+const HOTKEY_MODS = { 'Ctrl+Alt': 'Control+Alt', 'Ctrl+Alt+Shift': 'Control+Alt+Shift', 'Ctrl+Shift': 'Control+Shift', 'Alt+Shift': 'Alt+Shift' };
+const hotkeyMod = () => (HOTKEY_MODS[settings.hotkeyMod] ? settings.hotkeyMod : 'Ctrl+Alt');
+let hotkeyFailed = [];
+function registerHotkeys() {
+  globalShortcut.unregisterAll();
+  const m = HOTKEY_MODS[hotkeyMod()];
+  const keys = {
+    Space: toggle,
+    V: () => { win.show(); win.webContents.send('ui:ptt'); },
+    C: () => { win.show(); win.webContents.send('ui:clipboard'); },
+    S: () => { win.show(); win.webContents.send('ui:open', 'settings'); },
+  };
+  hotkeyFailed = [];
+  for (const [k, fn] of Object.entries(keys)) {
+    let ok = false;
+    try { ok = globalShortcut.register(`${m}+${k}`, fn); } catch { }
+    if (!ok) hotkeyFailed.push(`${hotkeyMod()}+${k}`);   // another app already owns it
+  }
+}
+
 function refreshTray() {
   if (!tray) return;
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Show / hide  (Ctrl+Alt+Space)', click: toggle },
+    { label: `Show / hide  (${hotkeyMod()}+Space)`, click: toggle },
     { label: 'Settings / API keys', click: () => { win.show(); win.webContents.send('ui:open', 'settings'); } },
     { label: 'Start with Windows', type: 'checkbox', checked: !!settings.autoStart,
       click: (item) => { saveSettings({ autoStart: item.checked }); win.webContents.send('ui:settings'); } },
@@ -584,7 +606,12 @@ function registerIpc() {
   ipcMain.handle('remind:remove', (_e, id) => { reminders = reminders.filter(r => r.id !== id); saveReminders(); return true; });
   ipcMain.handle('win:pos', () => win.getPosition());
   ipcMain.handle('settings:get', () => publicSettings());
-  ipcMain.handle('settings:set', (_e, patch) => { saveSettings(patch); refreshTray(); return publicSettings(); });
+  ipcMain.handle('settings:set', (_e, patch) => {
+    const oldMod = hotkeyMod();
+    saveSettings(patch);
+    if (hotkeyMod() !== oldMod) registerHotkeys();
+    refreshTray(); return publicSettings();
+  });
   ipcMain.handle('ai:ask', async (_e, req) => {
     try { const r = await ask(req); return { ok: true, ...r }; } catch (err) { return { ok: false, error: String(err.message || err) }; }
   });
@@ -694,10 +721,7 @@ app.whenReady().then(() => {
   registerIpc();
   createWindow();
   createTray();
-  globalShortcut.register('Control+Alt+Space', toggle);
-  globalShortcut.register('Control+Alt+V', () => { win.show(); win.webContents.send('ui:ptt'); });
-  globalShortcut.register('Control+Alt+C', () => { win.show(); win.webContents.send('ui:clipboard'); });
-  globalShortcut.register('Control+Alt+S', () => { win.show(); win.webContents.send('ui:open', 'settings'); });
+  registerHotkeys();
   loadReminders();
   ttsAvailable().then((ok) => { if (ok && settings.naturalVoice !== false) ttsWarm(); });   // start the voice helper + open its connections
   setInterval(checkReminders, 15000);

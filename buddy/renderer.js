@@ -898,7 +898,7 @@ async function startRec() {
     src.connect(proc); proc.connect(ctx.destination);
     stopSpeaking();
     if (neuralOn()) window.pip.ttsWarm();   // while you talk, open the voice connections for her answer
-    const meter = setInterval(() => say(`🎤 Listening ${levelBar(live)}  (click mic or Ctrl+Alt+V to stop)`, 30000), 150);
+    const meter = setInterval(() => say(`🎤 Listening ${levelBar(live)}  (click mic or ${hk('V')} to stop)`, 30000), 150);
     rec = { stream, ctx, proc, chunks, meter, timer: setTimeout(stopRec, 30000) };
     $('#btnMic').classList.add('rec'); mood('listen');
   } catch (err) { errMsg('Microphone not available: ' + err.message); }
@@ -1142,6 +1142,7 @@ async function openSettings() {
   $('#sSize').value = settings.charScale || 1;
   $('#sSizeVal').textContent = Math.round((settings.charScale || 1) * 100) + '%';
   $('#sMoments').checked = settings.moments !== false;
+  $('#sHotkey').value = settings.hotkeyMod || 'Ctrl+Alt';
   $('#sVolume').value = settings.soundVolume ?? 0.6;
   $('#sFallback').checked = settings.fallback !== false;
   $('#sProxy').value = settings.proxy || '';
@@ -1197,6 +1198,13 @@ $('#sMicTest').onclick = async () => {
   finally { if (stream) stream.getTracks().forEach((t) => t.stop()); b.disabled = false; }
 };
 $('#btnSettings').onclick = openSettings;
+// shortcut keys are a setting (Ctrl+Alt by default): show the chosen ones everywhere
+const hk = (k) => `${settings.hotkeyMod || 'Ctrl+Alt'}+${k}`;
+function applyHotkeyLabels() {
+  $('#btnClose').title = `Close (${hk('Space')})`;
+  $('#btnClip').title = `Fix / translate / summarize what you copied (${hk('C')})`;
+  $('#btnMic').title = `Push to talk (${hk('V')})`;
+}
 // New chat: forget the conversation so far (About me + saved memories are kept)
 function newChat(quiet) {
   if (busy) return;
@@ -1217,9 +1225,10 @@ $('#sSave').onclick = async () => {
     autoStart: $('#sAuto').checked, character: $('#sChar').value, looks: closeLookEditor(true),
     autoUpdate: $('#sAutoUpd').checked,
     charScale: Number($('#sSize').value), sound: $('#sSound').checked, moments: $('#sMoments').checked, soundVolume: Number($('#sVolume').value),
-    voiceLang: $('#sVoiceLang').value, micId: $('#sMic').value,
+    voiceLang: $('#sVoiceLang').value, micId: $('#sMic').value, hotkeyMod: $('#sHotkey').value,
   });
-  applyCharacter(); showModelTag();
+  applyCharacter(); showModelTag(); applyHotkeyLabels();
+  if (settings.hotkeyFailed?.length) sys(`⚠ These shortcut keys are taken by another app: ${settings.hotkeyFailed.join(', ')}. Pick other keys in Settings → Shortcut keys.`);
   $('#settings').classList.add('hidden');
   sys('Settings saved.');
 };
@@ -1232,7 +1241,9 @@ $('#sSave').onclick = async () => {
   loadVoices();
   const h = new Date().getHours();
   const greet = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
-  sys(`${greet}${settings.userName ? ', ' + settings.userName : ''}! Ask me anything, drop a file on me, or tap a button above.\nHotkeys: Ctrl+Alt+Space show/hide · Ctrl+Alt+V talk · Ctrl+Alt+C clipboard · Ctrl+Alt+S settings (or right-click me)`);
+  applyHotkeyLabels();
+  sys(`${greet}${settings.userName ? ', ' + settings.userName : ''}! Ask me anything, drop a file on me, or tap a button above.\nHotkeys: ${hk('Space')} show/hide · ${hk('V')} talk · ${hk('C')} clipboard · ${hk('S')} settings (or right-click me)`);
+  if (settings.hotkeyFailed?.length) sys(`⚠ These shortcut keys are taken by another app: ${settings.hotkeyFailed.join(', ')}. Pick other keys in Settings → Shortcut keys.`);
   setTimeout(() => {
     mood('happy', 1500);
     say(settings.hasKey ? `${charStyle().hi} ${greet}! Click me if you need anything.` : `${charStyle().hi} Click me, then \u2699 Settings \u2192 AI providers to add an API key (Gemini is free).`, 8000);

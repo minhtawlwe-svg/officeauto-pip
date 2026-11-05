@@ -148,7 +148,7 @@ async function clipboardMenu() {
   const clip = await window.pip.readClipboard();
   const text = (clip.text || '').trim();
   if (!text && !clip.image) {
-    addMsg('pip', md('Your clipboard is empty. Copy some text (**Ctrl+C**) or a screenshot (**Win+Shift+S**), then press **Ctrl+Alt+C** or click 📋 Clipboard.'));
+    addMsg('pip', md(`Your clipboard is empty. Copy some text (**Ctrl+C**) or a screenshot (**Win+Shift+S**), then press **${hk('C')}** or click 📋 Clipboard.`));
     return;
   }
   const el = addMsg('pip', md(clip.image && !text ? 'You copied an **image**. What should I do with it?' : 'You copied this. What should I do with it?'));
