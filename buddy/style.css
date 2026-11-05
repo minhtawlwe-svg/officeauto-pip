@@ -153,6 +153,38 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #pip[data-eyes="happy"]:not(.sleep) .eyes .eye, #pip[data-eyes="heart"]:not(.sleep) .eyes .eye { opacity: 0; }
 #pip[data-eyes="wink"]:not(.sleep) .eyes .eye + .eye { opacity: 0; }
 #pip.sleep .lkEyes { display: none; }
+/* fun moments + feelings */
+#scene { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 1; }
+.sprite { position: absolute; left: 0; top: 0; }
+.sprite.walking .lg1 { animation: catLeg .28s infinite alternate; } .sprite.walking .lg2 { animation: catLeg .28s infinite alternate-reverse; }
+.sprite .lg1, .sprite .lg2 { transform-box: fill-box; transform-origin: 50% 0%; }
+@keyframes catLeg { from { transform: rotate(-18deg); } to { transform: rotate(18deg); } }
+.sprite .ctail { animation: catTail 1.2s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: 100% 100%; }
+@keyframes catTail { to { transform: rotate(-14deg); } }
+.sprite.flutter .wing, .sprite.flapping .wing { animation: flap .14s infinite alternate; transform-box: fill-box; transform-origin: 50% 50%; }
+@keyframes flap { to { transform: scaleY(.35); } }
+.sprite.tea .steam { animation: steam 1.6s ease-in-out infinite; }
+@keyframes steam { 0% { opacity: 0; transform: translateY(3px); } 50% { opacity: .9; } 100% { opacity: 0; transform: translateY(-4px); } }
+#pip[data-look="left"] .pupil { transform: translateX(-2.4px); }
+#pip[data-look="up"] .pupil { transform: translateY(-2.4px); }
+.fxStar { fill: #ffd34d; stroke: #d4a017; stroke-width: .5; animation: twinkle .7s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: center; }
+@keyframes twinkle { from { transform: scale(.55); opacity: .65; } to { transform: scale(1.15); opacity: 1; } }
+.fxHeart { fill: #ff4d6d; stroke: #c9184a; stroke-width: .6; animation: floatUp 1.6s ease-out infinite; }
+.fxHeart.h2 { animation-delay: .6s; }
+.fxTear { fill: #7cc8ff; stroke: #3d9be0; stroke-width: .5; animation: tearFall 1.3s ease-in infinite; }
+.fxTear.t2 { animation-delay: .5s; }
+@keyframes tearFall { from { transform: translateY(0); opacity: .95; } to { transform: translateY(10px); opacity: 0; } }
+.fxSweat { fill: #a9ddff; stroke: #4aa3d8; stroke-width: .6; animation: sweatBob 1.2s ease-in-out infinite alternate; }
+@keyframes sweatBob { to { transform: translateY(2px); } }
+.fxBlush { fill: #ff7f9b; opacity: .55; }
+.fxMark { font-family: "Segoe UI", sans-serif; font-weight: 800; fill: #ffd34d; stroke: #8a6a00; stroke-width: .7; animation: markPop .4s ease-out; }
+@keyframes markPop { from { transform: translateY(6px); opacity: 0; } }
+#pip[data-feel="laugh"] .eyes .eye { opacity: 0; }
+#pip[data-feel="surprised"] .mouth.smile, #pip[data-feel="surprised"] .mouth.flat { display: none; }
+#pip[data-feel="surprised"] .mouth.talk { display: block; }
+#pip[data-feel="sad"] .mouth.smile, #pip[data-feel="sorry"] .mouth.smile { display: none; }
+#pip[data-feel="sad"] .mouth.flat, #pip[data-feel="sorry"] .mouth.flat { display: block; }
+#pip[data-feel="sad"] .brow, #pip[data-feel="sorry"] .brow, #pip[data-feel="worried"] .brow { opacity: 1; }
 hr.sep { border: 0; border-top: 1px solid var(--line); margin: 10px 0; }
 #pKey { display: block; width: 100%; margin-top: 3px; background: var(--bg2); border: 1px solid var(--line); color: var(--text);
   border-radius: 8px; padding: 5px 8px; font: 12px Consolas, monospace; resize: vertical; user-select: text; -webkit-text-security: disc; }

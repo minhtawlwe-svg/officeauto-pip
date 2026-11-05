@@ -43,6 +43,8 @@ const SKILLS = [
     prompt: 'Set the reminder(s) I ask for with [[REMIND:...]] tags, then confirm in one short sentence.\n\n{input}' },
   { id: 'reminders', group: 'Plan my day', icon: '📌', name: 'My reminders', run: 'reminders' },
   { id: 'focus', group: 'Plan my day', icon: '🍅', name: 'Focus 25 min', run: 'focus' },
+  // ---- fun
+  { id: 'play', group: 'Fun', icon: '\uD83C\uDF88', name: 'Play a fun moment', run: 'play' },
 ];
 
 let activeSkill = null;
@@ -85,6 +87,7 @@ function useSkill(id) {
     case 'plan': return planMyDay();
     case 'reminders': return showReminders();
     case 'focus': return toggleFocus();
+    case 'play': return runMoment();
   }
   // text skills: show the chip and wait for the user's input
   activeSkill = s;

@@ -29,6 +29,8 @@ const DEFAULTS = {
   sound: true,                                         // character sounds (meow, woof...)
   soundVolume: 0.6,
   naturalVoice: true,                                  // Microsoft neural voices (incl. Burmese) when edge-tts is installed
+  charScale: 1,                                        // character size (0.7 - 1.6)
+  moments: true,                                       // fun idle moments (cat visit, butterfly, tea...)
   looks: {},                                           // wardrobe: per-character colours / eyes / accessory / hair
   aboutMe: '',                                         // what the user wrote about themselves
   memories: [],                                        // facts the AI learned while chatting [{ t, text }]

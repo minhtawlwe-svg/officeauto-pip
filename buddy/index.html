@@ -112,6 +112,9 @@
         <option value="penguin">Pebble (penguin)</option>
       </select>
     </label>
+    <label>Character size <span id="sSizeVal" class="pNote"></span>
+      <input id="sSize" type="range" min="0.7" max="1.6" step="0.05">
+    </label>
     <div id="lookBox" class="hidden">
       <div class="secHead"><b>&#127912; Look</b><button id="lookReset" type="button" class="ghost">Reset look</button></div>
       <div id="lookColors" class="lookGrid"></div>
@@ -120,6 +123,7 @@
       <label>Accessory <div class="inline"><select id="lookAcc"></select><input id="lookAccColor" type="color" title="Accessory colour"></div></label>
     </div>
     <label class="row"><input id="sSound" type="checkbox"> Character sounds (meow, woof, honk...)</label>
+    <label class="row"><input id="sMoments" type="checkbox"> Fun moments (a cat visits, butterflies, tea breaks...)</label>
     <label>Sound volume
       <div class="inline"><input id="sVolume" type="range" min="0" max="1" step="0.05"><button id="sSoundTest" type="button">&#128264; Play</button></div>
     </label>
@@ -386,6 +390,7 @@
 <script src="skills.js"></script>
 <script src="sounds.js"></script>
 <script src="customize.js"></script>
+<script src="moments.js"></script>
 <!-- optional personal characters (buddy/private is never uploaded to GitHub) -->
 <script src="private/character.js"></script>
 <!-- an edition's own characters (e.g. editions/tom-eaindra/characters.js), absent in plain Pip -->

@@ -9,12 +9,13 @@ const TASK_LABELS = {
 const FOLDER_TASKS = ['ToPdf', 'Duplicates'];
 // programs Pip may open (names must match main.js APPS)
 const APPS = { excel: 1, word: 1, powerpoint: 1, outlook: 1, notepad: 1, calculator: 1, explorer: 1, edge: 1, chrome: 1, teams: 1, paint: 1, snip: 1 };
-const TAG_RE = /\[\[(RUN|OPEN|APP|READ|REMIND|CLOSE|NEW|REMEMBER):[^\]]*\]\]/g;
+const TAG_RE = /\[\[(RUN|OPEN|APP|READ|REMIND|CLOSE|NEW|REMEMBER|FEEL):[^\]]*\]\]/g;
 
 // spreadsheet loaded for analysis - stays loaded for follow-up questions
 let data = null;   // { name, tables, text }
 
 let settings = {}, history = [], attachment = null, busy = false, reqSeq = 0;
+let feltFor = -1;   // reply id whose feeling is already shown
 let streamTarget = null, streamText = '';
 
 // ---------------------------------------------------------------- moods
@@ -235,6 +236,7 @@ function systemPrompt(extra = '') {
       'Add "excel":true when the user wants the chart in Excel too - Pip then adds a sheet with the numbers and a real Excel chart to their workbook. ' +
       'You may also chart a table you write yourself (e.g. sample data): output the ```table block, then a SEPARATE ```chart block whose "sheet" is that table\'s title - with "excel":true Pip builds a new workbook with the table and the chart. Always one JSON object per fenced block. ' +
       'Pip computes the exact numbers from ALL rows and shows them under the chart, so NEVER state totals or numbers you did not see in the data - describe patterns instead. If the user asks for "a good chart", pick the most useful one yourself (max 3 charts).',
+    'FEELINGS: you have real feelings. Start EVERY reply with one tag [[FEEL:x]] - x is one of happy, excited, laugh, love, shy, sad, sorry, surprised, worried, thinking, proud, calm - showing how you honestly feel about what the user just said (for a voice recording put it right after the HEARD line). Let the feeling show in your words too: cheerful for good news, gentle and caring when the user is sad, tired or stressed, surprised at surprises, a little shy when praised - then still help properly.',
     'If the input is a voice recording: line 1 is "HEARD: <exactly what the user said>" and nothing else (no reply, no tags on that line). Then a NEW line with your reply and any tags. Example:\nHEARD: open Facebook\nOpening Facebook.\n[[OPEN:https://www.facebook.com]]\nAnswer ONLY this new recording - earlier messages were already answered, never repeat them. ' +
       ({ my: 'The user speaks BURMESE (Myanmar language). Transcribe it in Myanmar script (Unicode), e.g. "HEARD: notepad ဖွင့်ပေး", even if the audio is not perfect - give your best guess. English words mixed in stay in English.',
         en: 'The user speaks English.' }[settings.voiceLang] ||
@@ -254,6 +256,8 @@ window.pip.onChunk(({ id, text }) => {
   streamTarget.innerHTML = md(shown);
   log.scrollTop = log.scrollHeight;
   if (!isSpeaking()) mood('talk');
+  const fm = streamText.match(/\[\[FEEL:(\w+)\]\]/);   // show the feeling as soon as it arrives
+  if (fm && feltFor !== id) { feltFor = id; showFeeling(fm[1].toLowerCase()); }
   streamSpeak(shown);   // start voicing finished sentences right away
 });
 
@@ -283,6 +287,8 @@ async function askAI({ text = '', audio = null, display = null, extraSystem = ''
   if (!res.ok) { target.remove(); if (voiceEl) voiceEl.remove(); errMsg(res.error); return null; }
   if (res.fellBack) sys(`↪ Answered by ${res.provider} (${(res.errors[0] || '').split(':')[0]} didn't work)`);
   const raw = res.text || streamText;
+  const feel = raw.match(/\[\[FEEL:(\w+)\]\]/);
+  if (feel && feltFor !== id) { feltFor = id; showFeeling(feel[1].toLowerCase()); }
   // action tags count wherever the model put them - even on the HEARD line
   const tasks = [...raw.matchAll(/\[\[RUN:(\w+)\]\]/g)].map((m) => m[1]).filter((t) => TASK_LABELS[t]);
   const opens = [...raw.matchAll(/\[\[(OPEN|APP|CLOSE|NEW):([^\]]+)\]\]/g)].map((m) => ({ kind: m[1], target: m[2].trim().toLowerCase() }));
@@ -695,7 +701,7 @@ function queueSentence(s) {
   const key = s.replace(/\s+/g, '');
   if (spokenNow.has(key) || spokenNow.size > 40) return;
   spokenNow.add(key);
-  const n = { ...NEURAL_DEFAULT, ...(charStyle().neural || {}) };
+  const n = feelVoice({ ...NEURAL_DEFAULT, ...(charStyle().neural || {}) });
   const voice = /[\u1000-\u109F]/.test(s) ? n.my : n.en;
   const cacheKey = `${voice}|${n.rate}|${n.pitch}|${key}`;
   let clip = clipCache.get(cacheKey);   // repeated phrases (greetings...) play instantly
@@ -707,6 +713,16 @@ function queueSentence(s) {
   pumpSpeech();
 }
 const clipCache = new Map();
+// the voice follows the feeling of the reply: quicker and higher when happy, slower and lower when sad
+const FEEL_VOICE = { excited: [8, 5], laugh: [6, 4], happy: [4, 2], love: [0, 3], shy: [-4, 2], proud: [3, 2], surprised: [4, 6],
+  sad: [-12, -6], sorry: [-8, -4], worried: [-4, -2], calm: [-6, -2], thinking: [-3, 0] };
+function feelVoice(n) {
+  const adj = FEEL_VOICE[pipEl.dataset.feel];
+  if (!adj) return n;
+  const clamp = (v) => Math.max(-40, Math.min(40, v));
+  const sign = (v) => (v >= 0 ? '+' : '') + v;
+  return { ...n, rate: sign(clamp((parseInt(n.rate, 10) || 0) + adj[0])) + '%', pitch: sign(clamp((parseInt(n.pitch, 10) || 0) + adj[1])) + 'Hz' };
+}
 async function pumpSpeech() {
   if (speechPlaying) return;
   speechPlaying = true;
@@ -941,6 +957,17 @@ function applyCharacter() {
   $('#foot').textContent = `AI can make mistakes · drop a file on ${c === 'bears' ? 'us' : CHAR_NAMES[c]} to summarize`;
   pipEl.title = `${CHAR_NAMES[c]} - click to chat, drag to move, drop a file to summarize`;
   if (typeof applyLook === 'function') applyLook();   // wardrobe (customize.js)
+  applySize(settings.charScale);
+}
+
+// character size: scale from the bottom-right corner; the chat and bubble move up with it
+function applySize(k) {
+  k = Math.max(0.7, Math.min(1.6, Number(k) || 1));
+  pipEl.style.transformOrigin = '100% 100%';
+  pipEl.style.transform = k === 1 ? '' : `scale(${k})`;
+  panel.style.bottom = Math.round(150 * k - (k > 1 ? 0 : 10 * (1 - k))) + 'px';
+  hint.style.bottom = Math.round(120 * k) + 'px';
+  hint.style.right = Math.round(120 * k) + 'px';
 }
 
 function showModelTag() {
@@ -1092,6 +1119,9 @@ async function openSettings() {
   $('#sVoiceLang').value = settings.voiceLang || 'auto';
   loadMics();
   $('#sSound').checked = settings.sound !== false;
+  $('#sSize').value = settings.charScale || 1;
+  $('#sSizeVal').textContent = Math.round((settings.charScale || 1) * 100) + '%';
+  $('#sMoments').checked = settings.moments !== false;
   $('#sVolume').value = settings.soundVolume ?? 0.6;
   $('#sFallback').checked = settings.fallback !== false;
   $('#sProxy').value = settings.proxy || '';
@@ -1147,6 +1177,7 @@ $('#sMicTest').onclick = async () => {
   finally { if (stream) stream.getTracks().forEach((t) => t.stop()); b.disabled = false; }
 };
 $('#btnSettings').onclick = openSettings;
+$('#sSize').oninput = () => { $('#sSizeVal').textContent = Math.round($('#sSize').value * 100) + '%'; applySize($('#sSize').value); };   // live preview
 $('#sCancel').onclick = () => { closeLookEditor(false); applyCharacter(); $('#settings').classList.add('hidden'); };
 $('#sSave').onclick = async () => {
   settings = await window.pip.setSettings({
@@ -1156,7 +1187,7 @@ $('#sSave').onclick = async () => {
     naturalVoice: $('#sNatural').checked,
     autoStart: $('#sAuto').checked, character: $('#sChar').value, looks: closeLookEditor(true),
     autoUpdate: $('#sAutoUpd').checked,
-    sound: $('#sSound').checked, soundVolume: Number($('#sVolume').value),
+    charScale: Number($('#sSize').value), sound: $('#sSound').checked, moments: $('#sMoments').checked, soundVolume: Number($('#sVolume').value),
     voiceLang: $('#sVoiceLang').value, micId: $('#sMic').value,
   });
   applyCharacter(); showModelTag();

@@ -37,7 +37,13 @@
         <ellipse class="face" cx="80" cy="55" rx="30" ry="28"/>
         <path class="hair hSpiky" d="M51 46L54 25L63 33L68 14L77 28L85 11L91 28L100 15L103 32L111 23L110 47Z"/>
         <g class="hair hCurly"><circle cx="57" cy="34" r="8"/><circle cx="66" cy="25" r="8.5"/><circle cx="77" cy="21" r="8.5"/><circle cx="88" cy="21" r="8.5"/><circle cx="98" cy="26" r="8.5"/><circle cx="105" cy="35" r="8"/></g>
-        <path class="hair" d="M50 62Q44 25 80 21Q116 24 111 62Q107 47 99 41Q93 50 85 43Q78 51 71 44Q63 51 57 45Q52 51 50 62Z"/>
+        <path class="hair hMohawk" d="M73 30L75 6L80 17L84 3L87 17L91 7L89 32Z"/>
+        <path class="hair hMain" d="M50 62Q44 25 80 21Q116 24 111 62Q107 47 99 41Q93 50 85 43Q78 51 71 44Q63 51 57 45Q52 51 50 62Z"/>
+        <path class="hair hBuzz" d="M53 52Q50 26 80 24Q110 26 107 52Q97 41 80 41Q63 41 53 52Z"/>
+        <path class="hair hBowl" d="M49 61Q44 22 80 20Q116 22 111 61L106 61L106 47Q80 42 54 47L54 61Z"/>
+        <path class="hair hSwept" d="M50 61Q44 23 80 20Q116 23 111 58Q101 45 88 46Q70 51 57 56Q52 58 50 61Z"/>
+        <path class="hair hSlick" d="M51 52Q48 21 80 19Q112 21 109 52Q100 33 80 32Q60 33 51 52Z"/><path class="hSlickLine" d="M62 30Q80 23 98 30M60 37Q80 29 100 37" fill="none"/>
+        <path class="hair hMessy" d="M58 32L47 23L62 27ZM100 30L112 20L105 32ZM86 23L93 10L92 25ZM70 24L66 12L76 22Z"/>
         <path class="hair hTuft" d="M77 24Q79 12 91 14Q84 17 85 24Z"/>
         <path class="hPart" d="M89 23Q86 30 88 38" fill="none"/>
         <path class="hairShine" d="M60 33Q70 28 81 30M66 39Q77 34 89 36" fill="none"/>
@@ -130,9 +136,26 @@
   .char-tom .shirt { fill: #fdfdfd; stroke: #d6dbe1; stroke-width: 1.3; stroke-linejoin: round; }
   .char-tom .shirtShade { fill: rgba(40,60,90,.07); }
   /* hair styles (Settings > Look > Hair style) */
-  .char-tom .hSpiky, .char-tom .hCurly, .char-tom .hPart { display: none; }
-  #pip[data-hair="spiky"] .char-tom .hSpiky, #pip[data-hair="curly"] .char-tom .hCurly, #pip[data-hair="neat"] .char-tom .hPart { display: inline; }
-  #pip[data-hair="spiky"] .char-tom .hTuft, #pip[data-hair="neat"] .char-tom .hTuft, #pip[data-hair="curly"] .char-tom .hTuft { display: none; }
+  /* Tom hair styles: extra parts are hidden until their style is chosen */
+  .char-tom .hSpiky, .char-tom .hCurly, .char-tom .hPart, .char-tom .hMohawk, .char-tom .hBuzz, .char-tom .hBowl, .char-tom .hSwept, .char-tom .hSlick, .char-tom .hSlickLine, .char-tom .hMessy { display: none; }
+  #pip[data-hair="spiky"] .char-tom .hSpiky { display: inline; }
+  #pip[data-hair="spiky"] .char-tom .hTuft { display: none; }
+  #pip[data-hair="neat"] .char-tom .hPart { display: inline; }
+  #pip[data-hair="neat"] .char-tom .hTuft { display: none; }
+  #pip[data-hair="curly"] .char-tom .hCurly { display: inline; }
+  #pip[data-hair="curly"] .char-tom .hTuft { display: none; }
+  #pip[data-hair="buzz"] .char-tom .hBuzz { display: inline; }
+  #pip[data-hair="buzz"] .char-tom .hTuft, #pip[data-hair="buzz"] .char-tom .hMain, #pip[data-hair="buzz"] .char-tom .hairShine { display: none; }
+  #pip[data-hair="bowl"] .char-tom .hBowl { display: inline; }
+  #pip[data-hair="bowl"] .char-tom .hTuft, #pip[data-hair="bowl"] .char-tom .hMain { display: none; }
+  #pip[data-hair="swept"] .char-tom .hSwept { display: inline; }
+  #pip[data-hair="swept"] .char-tom .hTuft, #pip[data-hair="swept"] .char-tom .hMain { display: none; }
+  #pip[data-hair="mohawk"] .char-tom .hMohawk { display: inline; }
+  #pip[data-hair="mohawk"] .char-tom .hTuft { display: none; }
+  #pip[data-hair="slick"] .char-tom .hSlick, #pip[data-hair="slick"] .char-tom .hSlickLine { display: inline; }
+  #pip[data-hair="slick"] .char-tom .hTuft, #pip[data-hair="slick"] .char-tom .hMain, #pip[data-hair="slick"] .char-tom .hairShine { display: none; }
+  #pip[data-hair="messy"] .char-tom .hMessy { display: inline; }
+  .char-tom .hSlickLine { stroke: #555; stroke-width: 1.5; stroke-linecap: round; }
   .char-tom .hPart { stroke: #555; stroke-width: 1.6; stroke-linecap: round; }
 
   /* Eaindra hair styles: extra parts are hidden until their style is chosen */
@@ -234,7 +257,8 @@
   CHAR_LOOKS.tom = {
     slots: { hair: ['.char-tom .hair'], top: ['.char-tom .shirt'], bottom: ['.char-tom .pantL', '.char-tom .pantR', '.char-tom .cuff'], shoes: ['.char-tom .shoe'], skin: ['.char-tom .skin', '.char-tom .face', '.char-tom .neck', '.char-tom .armSkin|stroke'] },
     heads: [{ l: [70.2, 61.1], r: [89.8, 61.1], top: 31.6, w: 51 }],
-    hairs: [['tuft', 'Tuft (default)'], ['spiky', 'Spiky'], ['neat', 'Neat side part'], ['curly', 'Curly']],
+    hairs: [['tuft', 'Tuft (default)'], ['spiky', 'Spiky'], ['neat', 'Neat side part'], ['curly', 'Curly'], ['buzz', 'Buzz cut'],
+      ['bowl', 'Bowl cut'], ['swept', 'Side-swept fringe'], ['mohawk', 'Mohawk'], ['slick', 'Slicked back'], ['messy', 'Messy']],
   };
   CHAR_LOOKS.eaindra = {
     slots: { hair: ['.char-eaindra .hair'], dress: ['.char-eaindra .dress'], band: ['.char-eaindra .band'], shoes: ['.char-eaindra .strap|stroke'], skin: ['.char-eaindra .skin', '.char-eaindra .face', '.char-eaindra .neck', '.char-eaindra .armSkin|stroke'] },
