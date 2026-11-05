@@ -11,42 +11,49 @@
     <ellipse class="shadow" cx="80" cy="163" rx="36" ry="5"/>
     <g class="bob">
       <!-- sneakers -->
-      <rect class="shoe" x="55" y="147" width="24" height="11" rx="5"/><rect class="sole" x="55" y="154" width="24" height="4.5" rx="2"/>
-      <rect class="shoe" x="81" y="147" width="24" height="11" rx="5"/><rect class="sole" x="81" y="154" width="24" height="4.5" rx="2"/>
-      <path class="lace" d="M63 150.5h7M63 153h7M89 150.5h7M89 153h7" fill="none"/>
-      <!-- khaki trousers -->
-      <rect class="pantL" x="60" y="118" width="19" height="31"/><rect class="pantR" x="80" y="118" width="19" height="31"/>
-      <rect class="cuff" x="60" y="143" width="19" height="6" rx="2"/><rect class="cuff" x="80" y="143" width="19" height="6" rx="2"/>
-      <!-- arms (left hangs, right is the waving one) -->
-      <rect class="skin" x="45" y="106" width="9" height="26" rx="4.5"/><circle class="skin" cx="49.5" cy="134" r="5"/>
-      <g class="armR"><rect class="skin" x="106" y="106" width="9" height="26" rx="4.5"/><circle class="skin" cx="110.5" cy="134" r="5"/></g>
-      <!-- white shirt -->
-      <path class="shirt" d="M57 90Q80 84 103 90L117 105L107 111L103 106L102 122L58 122L57 106L53 111L43 105Z"/>
-      <path class="shirtShade" d="M90 88L102 90L102 122L92 122Z"/>
-      <path class="collar" d="M71 86L80 95L89 86L86 84L80 89L74 84Z"/>
-      <path class="zip" d="M80 95V108" fill="none"/><circle class="zipDot" cx="80" cy="102" r="1.3"/><circle class="zipDot" cx="80" cy="107" r="1.3"/>
-      <!-- head -->
-      <rect class="neck" x="74" y="78" width="12" height="10" rx="3"/>
-      <circle class="skin" cx="50" cy="58" r="7"/><circle class="skin" cx="110" cy="58" r="7"/>
-      <ellipse class="face" cx="80" cy="55" rx="30" ry="28"/>
-      <path class="hair hSpiky" d="M51 46L54 25L63 33L68 14L77 28L85 11L91 28L100 15L103 32L111 23L110 47Z"/>
-      <g class="hair hCurly"><circle cx="57" cy="34" r="8"/><circle cx="66" cy="25" r="8.5"/><circle cx="77" cy="21" r="8.5"/><circle cx="88" cy="21" r="8.5"/><circle cx="98" cy="26" r="8.5"/><circle cx="105" cy="35" r="8"/></g>
-      <path class="hair" d="M50 62Q44 25 80 21Q116 24 111 62Q107 47 99 41Q93 50 85 43Q78 51 71 44Q63 51 57 45Q52 51 50 62Z"/>
-      <path class="hair hTuft" d="M77 24Q79 12 91 14Q84 17 85 24Z"/>
-      <path class="hPart" d="M89 23Q86 30 88 38" fill="none"/>
-      <path class="hairShine" d="M60 33Q70 28 81 30M66 39Q77 34 89 36" fill="none"/>
-      <path class="browSoft" d="M62 47Q68 43 74 46M86 46Q92 43 98 47" fill="none"/>
-      <path class="brow" d="M62 45l12 3M98 45l-12 3" fill="none"/>
-      <g class="eyes">
-        <g class="eye"><ellipse class="pupil" cx="68" cy="57" rx="4.6" ry="5.6"/><circle class="shine" cx="69.8" cy="55" r="1.6"/></g>
-        <g class="eye"><ellipse class="pupil" cx="92" cy="57" rx="4.6" ry="5.6"/><circle class="shine" cx="93.8" cy="55" r="1.6"/></g>
-        <path class="lid" d="M63 57.5q5 4 10 0M87 57.5q5 4 10 0" fill="none"/>
+      <rect class="shoe" x="56" y="150" width="23" height="10" rx="5"/><rect class="sole" x="56" y="156.5" width="23" height="4.5" rx="2"/>
+      <rect class="shoe" x="81" y="150" width="23" height="10" rx="5"/><rect class="sole" x="81" y="156.5" width="23" height="4.5" rx="2"/>
+      <path class="lace" d="M64 153h7M64 155.5h7M89 153h7M89 155.5h7" fill="none"/>
+      <!-- khaki trousers (longer legs) -->
+      <rect class="pantL" x="60" y="117" width="19.5" height="35"/><rect class="pantR" x="80.5" y="117" width="19.5" height="35"/>
+      <rect class="cuff" x="60" y="146" width="19.5" height="6" rx="2"/><rect class="cuff" x="80.5" y="146" width="19.5" height="6" rx="2"/>
+      <!-- arms: outlined, coming out of the sleeves (left hangs, right is the waving one) -->
+      <path class="armLine" d="M54 96Q50 111 52 125" fill="none"/><path class="armSkin" d="M54 96Q50 111 52 125" fill="none"/>
+      <circle class="skin" cx="52" cy="128.5" r="4.8"/>
+      <g class="armR">
+        <path class="armLine" d="M106 96Q110 111 108 125" fill="none"/><path class="armSkin" d="M106 96Q110 111 108 125" fill="none"/>
+        <circle class="skin" cx="108" cy="128.5" r="4.8"/>
       </g>
-      <ellipse class="cheek" cx="60" cy="66" rx="5.5" ry="3"/><ellipse class="cheek" cx="100" cy="66" rx="5.5" ry="3"/>
-      <path class="noseLine" d="M79 63q-1 3 2 3" fill="none"/>
-      <path class="mouth smile" d="M72 70Q80 76 88 70" fill="none"/>
-      <ellipse class="mouth talk" cx="80" cy="72" rx="4" ry="3"/>
-      <path class="mouth flat" d="M73 72h14" fill="none"/>
+      <!-- white shirt: torso + short sleeves -->
+      <path class="shirt" d="M61 82Q52 84 47 98L57 102L61 93Z"/><path class="shirt" d="M99 82Q108 84 113 98L103 102L99 93Z"/>
+      <path class="shirt" d="M60 82Q80 77 100 82L102 121L58 121Z"/>
+      <path class="shirtShade" d="M90 80L100 82L102 121L92 121Z"/>
+      <path class="collar" d="M72 79L80 87L88 79L85 77L80 82L75 77Z"/>
+      <path class="zip" d="M80 87V103" fill="none"/><circle class="zipDot" cx="80" cy="95" r="1.3"/><circle class="zipDot" cx="80" cy="100" r="1.3"/>
+      <!-- head: same face, a little smaller so he looks taller -->
+      <rect class="neck" x="75" y="73" width="10" height="10" rx="3"/>
+      <g class="tomHead" transform="translate(80 80) scale(0.82) translate(-80 -80)">
+        <circle class="skin" cx="50" cy="58" r="7"/><circle class="skin" cx="110" cy="58" r="7"/>
+        <ellipse class="face" cx="80" cy="55" rx="30" ry="28"/>
+        <path class="hair hSpiky" d="M51 46L54 25L63 33L68 14L77 28L85 11L91 28L100 15L103 32L111 23L110 47Z"/>
+        <g class="hair hCurly"><circle cx="57" cy="34" r="8"/><circle cx="66" cy="25" r="8.5"/><circle cx="77" cy="21" r="8.5"/><circle cx="88" cy="21" r="8.5"/><circle cx="98" cy="26" r="8.5"/><circle cx="105" cy="35" r="8"/></g>
+        <path class="hair" d="M50 62Q44 25 80 21Q116 24 111 62Q107 47 99 41Q93 50 85 43Q78 51 71 44Q63 51 57 45Q52 51 50 62Z"/>
+        <path class="hair hTuft" d="M77 24Q79 12 91 14Q84 17 85 24Z"/>
+        <path class="hPart" d="M89 23Q86 30 88 38" fill="none"/>
+        <path class="hairShine" d="M60 33Q70 28 81 30M66 39Q77 34 89 36" fill="none"/>
+        <path class="browSoft" d="M62 47Q68 43 74 46M86 46Q92 43 98 47" fill="none"/>
+        <path class="brow" d="M62 45l12 3M98 45l-12 3" fill="none"/>
+        <g class="eyes">
+          <g class="eye"><ellipse class="pupil" cx="68" cy="57" rx="4.6" ry="5.6"/><circle class="shine" cx="69.8" cy="55" r="1.6"/></g>
+          <g class="eye"><ellipse class="pupil" cx="92" cy="57" rx="4.6" ry="5.6"/><circle class="shine" cx="93.8" cy="55" r="1.6"/></g>
+          <path class="lid" d="M63 57.5q5 4 10 0M87 57.5q5 4 10 0" fill="none"/>
+        </g>
+        <ellipse class="cheek" cx="60" cy="66" rx="5.5" ry="3"/><ellipse class="cheek" cx="100" cy="66" rx="5.5" ry="3"/>
+        <path class="noseLine" d="M79 63q-1 3 2 3" fill="none"/>
+        <path class="mouth smile" d="M72 70Q80 76 88 70" fill="none"/>
+        <ellipse class="mouth talk" cx="80" cy="72" rx="4" ry="3"/>
+        <path class="mouth flat" d="M73 72h14" fill="none"/>
+      </g>
     </g>${extras}
   </svg>`;
 
@@ -102,6 +109,11 @@
   .char-tom .neck { fill: #e6b48a; }
   .char-tom .hair { fill: #1e1e1e; }
   .char-tom .hairShine, .char-eaindra .hairShine { stroke: #4a4a4a; stroke-width: 2.2; stroke-linecap: round; }
+  .char-tom .armLine { stroke: #c9946b; stroke-width: 10.5; stroke-linecap: round; }
+  .char-tom .armSkin { stroke: #f2c7a0; stroke-width: 8; stroke-linecap: round; }
+  #pip svg.char-tom g.armR { transform-box: fill-box; transform-origin: 50% 0%; }   /* pivot at the shoulder */
+  #pip.happy svg.char-tom g.armR { animation: tomWave .5s 4 alternate ease-in-out; }   /* raise the hand and wave */
+  @keyframes tomWave { 0% { transform: rotate(-135deg); } 100% { transform: rotate(-165deg); } }
   .char-tom .shirt { fill: #fdfdfd; stroke: #d6dbe1; stroke-width: 1.3; stroke-linejoin: round; }
   .char-tom .shirtShade { fill: rgba(40,60,90,.07); }
   /* hair styles (Settings > Look > Hair style) */
@@ -150,9 +162,11 @@
   CHAR_NAMES.tom = 'Tom';
 
   CHAR_PERSONAS.eaindra = 'You are Eaindra, a sweet, polite and cheerful girl in a light-blue dress who lives above the Windows taskbar and helps the user through the office day. ' +
-    'In Burmese you call yourself "ကျွန်မ". Be warm and encouraging, but clear, practical and useful.';
+    'In Burmese you call yourself "ကျွန်မ". Your name in Burmese script is exactly "အိန္ဒြာ" - always write it exactly like that, never any other spelling. ' +
+    'Be warm and encouraging, but clear, practical and useful.';
   CHAR_PERSONAS.tom = 'You are Tom, a friendly, easy-going young guy in a white shirt who lives above the Windows taskbar and helps the user through the office day. ' +
-    'In Burmese you call yourself "ကျွန်တော်". Be upbeat and helpful, with a bit of humour, but clear, practical and useful.';
+    'In Burmese you call yourself "ကျွန်တော်". Your name in Burmese script is exactly "တွမ်" - always write it exactly like that. ' +
+    'Be upbeat and helpful, with a bit of humour, but clear, practical and useful.';
 
   CHAR_STYLE.eaindra = {
     pitch: 1.25, rate: 1.0, voiceHint: /Zira|Aria|Jenny|Ava|Emma|Female/i,
@@ -183,8 +197,8 @@
 
   // wardrobe (customize.js): colour slots, where eyes/accessories go, hair styles
   CHAR_LOOKS.tom = {
-    slots: { hair: ['.char-tom .hair'], top: ['.char-tom .shirt'], bottom: ['.char-tom .pantL', '.char-tom .pantR', '.char-tom .cuff'], shoes: ['.char-tom .shoe'], skin: ['.char-tom .skin', '.char-tom .face', '.char-tom .neck'] },
-    heads: [{ l: [68, 57], r: [92, 57], top: 22, w: 62 }],
+    slots: { hair: ['.char-tom .hair'], top: ['.char-tom .shirt'], bottom: ['.char-tom .pantL', '.char-tom .pantR', '.char-tom .cuff'], shoes: ['.char-tom .shoe'], skin: ['.char-tom .skin', '.char-tom .face', '.char-tom .neck', '.char-tom .armSkin|stroke'] },
+    heads: [{ l: [70.2, 61.1], r: [89.8, 61.1], top: 31.6, w: 51 }],
     hairs: [['tuft', 'Tuft (default)'], ['spiky', 'Spiky'], ['neat', 'Neat side part'], ['curly', 'Curly']],
   };
   CHAR_LOOKS.eaindra = {
