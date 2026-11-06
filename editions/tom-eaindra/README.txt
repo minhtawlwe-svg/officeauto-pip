@@ -1,4 +1,4 @@
-TOM & EAINDRA  -  AI office buddies for Windows 10/11
+TOM & EAINDRA  -  AI chat friends for Windows 10/11 (chat only - for children)
 =========================================================
 
 Everything is inside this folder. Nothing else to install (no Node.js, no Python needed).
@@ -20,12 +20,11 @@ USE
 - Drag the character             = move it
 - Right-click it  or Ctrl+Alt+S  = Settings (switch Tom / Eaindra, voice, sounds, language)
 - Ctrl+Alt+V                     = talk (press again to send). Speak Burmese or English.
-- Ctrl+Alt+C                     = fix / translate / summarize what you copied, result goes back to Ctrl+V
 - Ctrl+Alt+Space                 = show / hide
-- Skills button                  = emails, letters, reports, meeting minutes, translate, Excel formulas,
-                                   tables, charts, PowerPoint, reminders, focus timer ...
 - Chat window: drag the top-left corner to resize,  -  to minimize,  expand button to make it big.
-Excel / Word / PowerPoint features need Microsoft Office installed.
+Chat only: Tom and Eaindra talk, answer questions, explain, tell stories and play word games.
+They do NOT open programs, make files or do things on the computer. For homework they give hints
+and explain step by step, so the children still think for themselves.
 Voices need internet (Burmese voice: Nilar for Eaindra, Thiha for Tom).
 
 
@@ -38,7 +37,8 @@ Voices need internet (Burmese voice: Nilar for Eaindra, Thiha for Tom).
 ၄။ ကာတွန်းကို နှိပ်ရင် chat ပွင့်ပါမယ်။ ဆွဲရွှေ့လို့ရပါတယ်။ Right-click (သို့) Ctrl+Alt+S = Settings။
 ၅။ Ctrl+Alt+V နှိပ်ပြီး မြန်မာလို (သို့) အင်္ဂလိပ်လို ပြောပါ၊ ပြီးရင် ထပ်နှိပ်ပါ။
 ၆။ Settings -> Character မှာ Tom နဲ့ Eaindra ကို ပြောင်းလို့ရပါတယ်။
-၇။ Excel / Word / PowerPoint လုပ်ဆောင်ချက်တွေအတွက် Microsoft Office လိုပါတယ်။ အသံအတွက် internet လိုပါတယ်။
+၇။ Chat သာ ပြောလို့ရပါတယ် - program ဖွင့်တာ၊ file လုပ်တာ မလုပ်ပါဘူး။ အိမ်စာအတွက် အဖြေ တန်းမပေးဘဲ
+    hint ပေးပြီး တစ်ဆင့်ချင်း ရှင်းပြပါတယ်၊ ကလေးတွေ ကိုယ်တိုင် စဉ်းစားရအောင်ပါ။ အသံအတွက် internet လိုပါတယ်။
 
 
 UPDATES

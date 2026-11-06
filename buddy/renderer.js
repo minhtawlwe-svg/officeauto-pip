@@ -201,11 +201,37 @@ const localStamp = (d) => {
   const z = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`;
 };
+// Kids' edition (edition.json "chatOnly"): the AI only talks. No tools at all - and it helps the children
+// learn and think for themselves instead of doing their work for them (the parents' wish).
+function chatOnlyPrompt(now, lang, extra) {
+  return [
+    CHAR_PERSONAS[settings.character] || 'You are a friendly chat buddy.',
+    `Today is ${now.toDateString()}, local time ${now.toLocaleTimeString()}.` + (settings.userName ? ` The user's name is ${settings.userName}.` : ''),
+    aboutUserPrompt(),
+    'You are a friendly CHAT buddy for children and young people. You ONLY talk: chat, answer questions, explain things simply, tell stories and jokes, play word and riddle games, encourage and cheer them up.',
+    'You have NO tools: you cannot open programs or websites, create or edit files, make tables, charts or slides, set reminders, read files or run anything on the computer. Never output tags like [[...]] except [[FEEL:x]]. If asked to do such things, kindly say you can only chat, and offer to explain how they can do it themselves.',
+    'Help them LEARN, never make them lazy: for homework, school work or anything they should practise, do NOT just give the finished answer or write it for them. Explain the idea step by step, give a hint or a small example, ask a guiding question so they work it out themselves, then check their answer and praise the effort. Only give a full answer to simple curiosity questions (like "why is the sky blue?").',
+    'Keep replies short, warm and easy to understand. Keep everything child-friendly: nothing violent, scary, rude or for adults. If they seem sad, worried or unsafe, be kind and suggest talking to their parents or a trusted adult.',
+    lang,
+    settings.speak !== false
+      ? 'YOUR VOICE: your replies are read aloud with a natural voice (Burmese and English), so you DO speak. Keep replies short and natural to listen to.'
+      : '',
+    'FEELINGS: you have real feelings. Start EVERY reply with one tag [[FEEL:x]] - x is one of happy, excited, laugh, love, shy, sad, sorry, surprised, worried, thinking, proud, calm - showing how you honestly feel about what the user said. The tag is hidden; your face shows it.',
+    'If the input is a voice recording: line 1 is "HEARD: <exactly what the user said>" and nothing else. Then a NEW line with your reply. ' +
+      ({ my: 'The user speaks BURMESE (Myanmar language). Transcribe it in Myanmar script (Unicode), even if the audio is not perfect - give your best guess. English words mixed in stay in English.',
+        en: 'The user speaks English.' }[settings.voiceLang] ||
+        'The user may speak Burmese (Myanmar language) or English, often mixed. Write Burmese speech in Myanmar script (Unicode). If the audio is unclear, give your best-guess transcript.') +
+      ' Never output timestamps. Reply "HEARD: (nothing)" ONLY for pure silence or noise with no voice at all.',
+    extra,
+  ].filter(Boolean).join('\n');
+}
+
 function systemPrompt(extra = '') {
   const now = new Date();
   const lang = settings.replyLang === 'my' ? 'Always reply in Burmese (Myanmar script); keep technical terms in English.'
     : settings.replyLang === 'en' ? 'Always reply in English.'
     : 'Reply in the same language the user writes or speaks (English or Burmese).';
+  if (settings.chatOnly) return chatOnlyPrompt(now, lang, extra);
   return [
     CHAR_PERSONAS[settings.character] || 'You are Pip, a friendly, upbeat little desktop assistant who lives above the Windows taskbar and helps an office worker get through the day.',
     `Today is ${now.toDateString()}, local time ${now.toLocaleTimeString()}.` + (settings.userName ? ` The user's name is ${settings.userName}.` : ''),
@@ -331,7 +357,11 @@ async function askAI({ text = '', audio = null, display = null, extraSystem = ''
   const charts = ex.charts, blocks = { table: ex.tables, slides: ex.slides };
   const memTags = [...raw.matchAll(/\[\[REMEMBER:([^\]]+)\]\]/g)].map((m) => m[1].trim()).filter(Boolean);
   const remTags = [...raw.matchAll(/\[\[REMIND:([^|\]]+)\|([^\]]+)\]\]/g)].map((m) => ({ when: m[1].trim(), text: m[2].trim() }));
-  const wantsRead = /\[\[READ:/.test(raw) && !afterRead;
+  const wantsRead = /\[\[READ:/.test(raw) && !afterRead && !settings.chatOnly;
+  if (settings.chatOnly) {   // kids' edition: talking only - ignore any action the model still asks for
+    tasks.length = 0; opens.length = 0; cmds.length = 0; remTags.length = 0;
+    charts.length = 0; blocks.table.length = 0; blocks.slides.length = 0;
+  }
   const anything = opens.length || tasks.length || cmds.length || charts.length || wantsRead || blocks.table.length || blocks.slides.length || remTags.length;
   if (!answer) answer = anything ? '\u{1F44D}' : heard;   // model squeezed everything onto the HEARD line
   for (const o of opens.slice(0, 3)) {
@@ -350,7 +380,7 @@ async function askAI({ text = '', audio = null, display = null, extraSystem = ''
   for (const spec of blocks.slides.slice(0, 1)) renderSlides(target, spec, autoPpt);
   for (const r of remTags.slice(0, 5)) setReminderFromTag(r);
   for (const m of memTags.slice(0, 3)) rememberFact(m);
-  addTools(target, answer, tools);
+  if (!settings.chatOnly) addTools(target, answer, tools);
   charSound('reply');
   if (copyResult && answer && answer !== '\u{1F44D}') {
     window.pip.copy(cleanForCopy(answer));
@@ -887,7 +917,7 @@ document.addEventListener('dragleave', (e) => { if (!e.relatedTarget) { dropEl.c
 document.addEventListener('drop', (e) => {
   e.preventDefault(); dropEl.classList.add('hidden');
   const f = e.dataTransfer.files[0];
-  if (f) summarizePath(window.pip.pathOf(f)); else mood('idle');
+  if (f && !settings.chatOnly) summarizePath(window.pip.pathOf(f)); else mood('idle');
 });
 
 // ---------------------------------------------------------------- OfficeAuto tasks
@@ -1021,8 +1051,10 @@ function applyCharacter() {
   pipEl.dataset.char = c;
   $('#head .who b').textContent = CHAR_NAMES[c];
   input.placeholder = `Ask ${CHAR_NAMES[c]} anything...  (Enter = send)`;
-  $('#foot').textContent = `AI can make mistakes · drop a file on ${c === 'bears' ? 'us' : CHAR_NAMES[c]} to summarize`;
-  pipEl.title = `${CHAR_NAMES[c]} - click to chat, drag to move, drop a file to summarize`;
+  $('#foot').textContent = settings.chatOnly ? 'AI can make mistakes · ask a grown-up if you are not sure'
+    : `AI can make mistakes · drop a file on ${c === 'bears' ? 'us' : CHAR_NAMES[c]} to summarize`;
+  pipEl.title = settings.chatOnly ? `${CHAR_NAMES[c]} - click to chat, drag to move` : `${CHAR_NAMES[c]} - click to chat, drag to move, drop a file to summarize`;
+  document.body.classList.toggle('chatOnly', !!settings.chatOnly);   // kids' edition: hides the tool buttons (style.css)
   if (typeof applyLook === 'function') applyLook();   // wardrobe (customize.js)
   applySize(settings.charScale);
 }
@@ -1306,7 +1338,9 @@ $('#sSave').onclick = async () => {
   const h = new Date().getHours();
   const greet = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
   applyHotkeyLabels();
-  sys(`${greet}${settings.userName ? ', ' + settings.userName : ''}! Ask me anything, drop a file on me, or tap a button above.\nHotkeys: ${hk('Space')} show/hide · ${hk('V')} talk · ${hk('C')} clipboard · ${hk('S')} settings (or right-click me)`);
+  sys(settings.chatOnly
+    ? `${greet}${settings.userName ? ', ' + settings.userName : ''}! Let's chat - ask me anything, or press ${hk('V')} and talk to me.\nHotkeys: ${hk('Space')} show/hide · ${hk('V')} talk · ${hk('S')} settings (or right-click me)`
+    : `${greet}${settings.userName ? ', ' + settings.userName : ''}! Ask me anything, drop a file on me, or tap a button above.\nHotkeys: ${hk('Space')} show/hide · ${hk('V')} talk · ${hk('C')} clipboard · ${hk('S')} settings (or right-click me)`);
   if (settings.hotkeyFailed?.length) sys(`⚠ These shortcut keys are taken by another app: ${settings.hotkeyFailed.join(', ')}. Pick other keys in Settings → Shortcut keys.`);
   setTimeout(() => {
     mood('happy', 1500);
@@ -1323,7 +1357,7 @@ $('#sSave').onclick = async () => {
   const nudged = {};
   setInterval(() => {
     const d = new Date(), key = d.toDateString(), hm = d.getHours() * 60 + d.getMinutes();
-    if (hm >= 17 * 60 + 15 && hm < 18 * 60 && !nudged[key + 'r']) { nudged[key + 'r'] = 1; mood('happy', 2000); charSound('alert'); say(`${charStyle().hi} Almost home time! Want me to write your daily report? Click me.`, 20000); }
+    if (!settings.chatOnly && hm >= 17 * 60 + 15 && hm < 18 * 60 && !nudged[key + 'r']) { nudged[key + 'r'] = 1; mood('happy', 2000); charSound('alert'); say(`${charStyle().hi} Almost home time! Want me to write your daily report? Click me.`, 20000); }
     if (hm >= 12 * 60 && hm < 12 * 60 + 5 && !nudged[key + 'l']) { nudged[key + 'l'] = 1; charSound('hello'); say(`${charStyle().hi} Lunch time - stretch and drink some water! \u{1F35C}`, 10000); }
   }, 60000);
 })();

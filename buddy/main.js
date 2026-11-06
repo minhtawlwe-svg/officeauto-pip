@@ -10,6 +10,8 @@ const { spawn } = require('child_process');
 // An "edition" (e.g. Tom & Eaindra) ships an edition.json next to this file: its own name, characters, updates.
 const EDITION = (() => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'edition.json'), 'utf8')); } catch { return {}; } })();
 const APP_NAME = EDITION.appName || 'Pip OfficeAuto Buddy';
+const CHAT_ONLY = !!EDITION.chatOnly;   // kids' edition: the AI only talks - no programs, files, commands or skills
+const NO_TOOLS = { ok: false, error: 'This app is chat-only.', out: 'This app is chat-only.' };
 // OfficeAuto.ps1 + config.json: next to this file in a packaged edition, one folder up in the dev checkout
 const ROOT = fs.existsSync(path.join(__dirname, 'OfficeAuto.ps1')) ? __dirname : path.join(__dirname, '..');
 // bundled portable Python (pythonpython.exe) lets natural voices work without installing anything
@@ -127,7 +129,7 @@ function applyAutoStart() {
 
 function publicSettings() {
   const a = activeProvider();
-  return { ...settings, hotkeyMod: hotkeyMod(), hotkeyFailed, hasKey: !!a && AI.usable(a), activeName: a ? a.name : '', activeModel: a ? a.model : '',
+  return { ...settings, chatOnly: CHAT_ONLY, hotkeyMod: hotkeyMod(), hotkeyFailed, hasKey: !!a && AI.usable(a), activeName: a ? a.name : '', activeModel: a ? a.model : '',
     activeMode: a && a.type === 'gemini' ? a.mode : '', hasGemini: providers.some((p) => p.type === 'gemini' && AI.usable(p)) };
 }
 
@@ -183,7 +185,7 @@ function registerHotkeys() {
   const keys = {
     Space: toggle,
     V: () => { win.show(); win.webContents.send('ui:ptt'); },
-    C: () => { win.show(); win.webContents.send('ui:clipboard'); },
+    ...(CHAT_ONLY ? {} : { C: () => { win.show(); win.webContents.send('ui:clipboard'); } }),
     S: () => { win.show(); win.webContents.send('ui:open', 'settings'); },
   };
   hotkeyFailed = [];
@@ -642,7 +644,7 @@ function registerIpc() {
   });
   ipcMain.on('win:hide', () => win.hide());
   ipcMain.on('win:show', () => { if (!win.isVisible()) win.showInactive(); });
-  ipcMain.handle('office:make', (_e, { kind, payload }) => runOfficeScript('office-make.ps1', ['-Kind', kind], payload));
+  ipcMain.handle('office:make', (_e, { kind, payload }) => CHAT_ONLY ? NO_TOOLS : runOfficeScript('office-make.ps1', ['-Kind', kind], payload));
   ipcMain.handle('clip:read', () => {
     let img = clipboard.readImage(), image = null;
     if (!img.isEmpty()) {
@@ -686,12 +688,13 @@ function registerIpc() {
     const r = await dialog.showOpenDialog(win, { properties: ['openDirectory'] });
     return r.canceled ? null : r.filePaths[0];
   });
-  ipcMain.handle('task:run', (_e, { task, folder }) => runTask(task, folder));
+  ipcMain.handle('task:run', (_e, { task, folder }) => CHAT_ONLY ? NO_TOOLS : runTask(task, folder));
   ipcMain.handle('note:today', () => {
     const p = path.join(expand(officeConfig().NotesFolder || '%USERPROFILE%\\Documents\\DailyNotes'), todayStamp() + '.md');
     return fs.existsSync(p) ? { ok: true, path: p, text: fs.readFileSync(p, 'utf8') } : { ok: false, path: p };
   });
   ipcMain.handle('open:url', async (_e, url) => {
+    if (CHAT_ONLY) return NO_TOOLS;
     let u;
     try { u = new URL(url); } catch { return { ok: false, error: 'Bad link: ' + url }; }
     if (u.protocol === 'ms-settings:') {   // a Windows Settings page
@@ -703,6 +706,7 @@ function registerIpc() {
     return { ok: true, label: u.hostname.replace(/^www\./, '') };
   });
   ipcMain.handle('open:app', async (_e, name) => {
+    if (CHAT_ONLY) return NO_TOOLS;
     const key = String(name).toLowerCase().trim();
     const target = APPS[key];
     if (target) {
@@ -719,6 +723,7 @@ function registerIpc() {
     return { ok: true, label: app.Name };
   });
   ipcMain.handle('close:app', async (_e, name) => {
+    if (CHAT_ONLY) return NO_TOOLS;
     const key = String(name).toLowerCase().trim();
     const exe = CLOSE_EXE[key];
     if (exe) {
@@ -744,6 +749,7 @@ function registerIpc() {
   // AI commands: the renderer asks how risky a command is, shows it, and only runs it after the user's OK (or at once if read-only)
   ipcMain.handle('cmd:risk', (_e, cmd) => commandRisk(cmd));
   ipcMain.handle('cmd:run', async (_e, { cmd, approved }) => {
+    if (CHAT_ONLY) return NO_TOOLS;
     if (settings.allowCommands === false) return { ok: false, out: 'Running commands is turned off in Settings.' };
     if (commandRisk(cmd) !== 'safe' && !approved) return { ok: false, out: 'Not approved by the user.' };
     const r = await runPS(String(cmd), 60000);

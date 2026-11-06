@@ -4,5 +4,6 @@
   "defaultCharacter": "eaindra",
   "updateRepo": "minhtawlwe-svg/officeauto-pip",
   "updateBranch": "main",
-  "editionDir": "editions/tom-eaindra"
+  "editionDir": "editions/tom-eaindra",
+  "chatOnly": true
 }

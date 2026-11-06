@@ -368,3 +368,5 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 10px 0; }
 .cmdCard .cmdBtns button.dangerBtn { background: #d64545; color: #fff; border-color: #d64545; }
 .cmdCard .cmdOut, .cmdCard details { margin-top: 5px; color: var(--muted); }
 .cmdCard pre { max-height: 160px; overflow: auto; white-space: pre-wrap; font-size: 11px; margin: 4px 0 0; }
+/* kids' chat-only edition: no tool buttons, no file attach, no "do things on this PC" setting */
+body.chatOnly #chips, body.chatOnly #btnFile, body.chatOnly #drop, body.chatOnly label:has(#sCmds) { display: none !important; }
