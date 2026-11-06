@@ -355,3 +355,16 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 10px 0; }
 #head .headBtns { display: flex; flex-shrink: 0; flex-wrap: nowrap; }
 #head .who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #head .headBtns button { padding: 2px 5px; }
+/* commands the AI wants to run: shown with Allow / Deny unless read-only */
+.cmdCard { margin-top: 8px; border: 1px solid var(--line); border-left: 4px solid #2e9e6a; border-radius: 8px; padding: 6px 8px; background: var(--bg2); font-size: 12px; }
+.cmdCard.change { border-left-color: #e0a030; }
+.cmdCard.danger { border-left-color: #d64545; background: rgba(214, 69, 69, .08); }
+.cmdCard .cmdHead { font-weight: 600; margin-bottom: 4px; }
+.cmdCard.danger .cmdHead { color: #d64545; }
+.cmdCard code { display: block; white-space: pre-wrap; word-break: break-all; font-size: 11.5px; padding: 4px 6px; border-radius: 6px; background: rgba(0, 0, 0, .18); }
+.cmdCard .cmdBtns { display: flex; gap: 6px; justify-content: flex-end; margin-top: 6px; }
+.cmdCard .cmdBtns button { border-radius: 8px; padding: 4px 12px; border: 1px solid var(--line); background: var(--bg); color: var(--text); cursor: pointer; }
+.cmdCard .cmdBtns button.primary { background: #17a2a8; color: #fff; border-color: #17a2a8; }
+.cmdCard .cmdBtns button.dangerBtn { background: #d64545; color: #fff; border-color: #d64545; }
+.cmdCard .cmdOut, .cmdCard details { margin-top: 5px; color: var(--muted); }
+.cmdCard pre { max-height: 160px; overflow: auto; white-space: pre-wrap; font-size: 11px; margin: 4px 0 0; }

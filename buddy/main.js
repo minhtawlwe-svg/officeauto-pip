@@ -31,7 +31,8 @@ const DEFAULTS = {
   naturalVoice: true,                                  // Microsoft neural voices (incl. Burmese) when edge-tts is installed
   charScale: 1,                                        // character size (0.7 - 1.6)
   hotkeyMod: 'Ctrl+Alt',                               // shortcut keys: Ctrl+Alt / Ctrl+Alt+Shift / Ctrl+Shift / Alt+Shift (+ Space V C S)
-  moments: true,                                       // fun idle moments (cat visit, butterfly, tea...)
+  allowCommands: true,                                 // AI may run PowerShell: read-only at once, changes only after Allow
+  moments: true,                                     // fun idle moments (cat visit, butterfly, tea...)
   looks: {},                                           // wardrobe: per-character colours / eyes / accessory / hair
   aboutMe: '',                                         // what the user wrote about themselves
   memories: [],                                        // facts the AI learned while chatting [{ t, text }]
@@ -280,16 +281,16 @@ function ttsWorker() {
     while ((nl = buf.indexOf('\n')) >= 0) {
       const line = buf.slice(0, nl); buf = buf.slice(nl + 1);
       try {
-        const r = JSON.parse(line), done = ttsPending.get(r.id);
-        if (!done) continue;
+        const r = JSON.parse(line), p = ttsPending.get(r.id);
+        if (!p) continue;
         ttsPending.delete(r.id);
-        done(r.ok ? { ok: true, url: 'data:audio/mpeg;base64,' + r.b64 } : { ok: false, error: r.error || 'no audio' });
+        p.done(r.ok ? { ok: true, url: 'data:audio/mpeg;base64,' + r.b64 } : { ok: false, error: r.error || 'no audio' });
       } catch { }
     }
   });
   const reset = () => {
     ttsProc = null;
-    for (const done of ttsPending.values()) done({ ok: false, error: 'voice helper stopped' });
+    for (const p of ttsPending.values()) p.done({ ok: false, error: 'voice helper stopped' });
     ttsPending.clear();
   };
   ttsProc.on('exit', reset);
@@ -301,14 +302,22 @@ function ttsWarm() {
   if (settings.naturalVoice === false || ttsOk === false) return;
   try { ttsWorker().stdin.write('{"warm": true}\n'); } catch { }
 }
+// a new question cancels the voice of the old answer: sentences still waiting in the helper are dropped,
+// so they don't queue up in front of the new answer (that made the voice go silent after quick questions)
+function ttsCancel() {
+  ttsGenMain++;
+  for (const [id, p] of ttsPending) if (p.gen < ttsGenMain) { ttsPending.delete(id); p.done({ ok: false, error: 'cancelled' }); }
+  if (ttsProc) { try { ttsProc.stdin.write(JSON.stringify({ cancel: ttsGenMain }) + '\n'); } catch { } }
+}
+let ttsGenMain = 0;
 function ttsSpeak({ text, voice, rate, pitch }) {
   return new Promise((resolve) => {
     if (!/^[a-z]{2}-[A-Z]{2}-[A-Za-z]+Neural$/.test(voice || '')) return resolve({ ok: false, error: 'bad voice' });
     const r = /^[+-]\d{1,2}%$/.test(rate || '') ? rate : '+0%', pt = /^[+-]\d{1,2}Hz$/.test(pitch || '') ? pitch : '+0Hz';
     const id = ++ttsSeq;
-    ttsPending.set(id, resolve);
-    setTimeout(() => { if (ttsPending.delete(id)) resolve({ ok: false, error: 'voice timeout' }); }, 20000);
-    try { ttsWorker().stdin.write(JSON.stringify({ id, text: String(text).slice(0, 1200), voice, rate: r, pitch: pt }) + '\n'); }
+    ttsPending.set(id, { done: resolve, gen: ttsGenMain });
+    setTimeout(() => { const p = ttsPending.get(id); if (p) { ttsPending.delete(id); p.done({ ok: false, error: 'voice timeout' }); } }, 20000);
+    try { ttsWorker().stdin.write(JSON.stringify({ id, gen: ttsGenMain, text: String(text).slice(0, 1200), voice, rate: r, pitch: pt }) + '\n'); }
     catch (e) { ttsPending.delete(id); resolve({ ok: false, error: e.message }); }
   });
 }
@@ -485,6 +494,47 @@ const CLOSE_EXE = {
   calculator: 'CalculatorApp.exe', edge: 'msedge.exe', chrome: 'chrome.exe', teams: 'ms-teams.exe', paint: 'mspaint.exe', snip: 'SnippingTool.exe',
 };
 
+const PS_EXE = path.join(process.env.WINDIR || 'C:\\Windows', 'System32\\WindowsPowerShell\\v1.0\\powershell.exe');
+// runs a PowerShell script (passed encoded, so quotes survive) and returns its text output
+function runPS(script, timeoutMs = 60000, env = {}) {
+  return new Promise((resolve) => {
+    const full = '[Console]::OutputEncoding = [Text.Encoding]::UTF8; $ProgressPreference = "SilentlyContinue"\n' + script;
+    let ps;
+    try {
+      ps = spawn(PS_EXE, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(full, 'utf16le').toString('base64')],
+        { windowsHide: true, env: { ...process.env, ...env } });
+    } catch (e) { return resolve({ ok: false, code: -1, out: e.message }); }
+    let out = '', timedOut = false;
+    ps.stdout.setEncoding('utf8'); ps.stderr.setEncoding('utf8');
+    ps.stdout.on('data', (d) => { out += d; }); ps.stderr.on('data', (d) => { out += d; });
+    const t = setTimeout(() => { timedOut = true; ps.kill(); }, timeoutMs);
+    ps.on('error', (e) => { clearTimeout(t); resolve({ ok: false, code: -1, out: e.message }); });
+    ps.on('close', (code) => { clearTimeout(t); resolve({ ok: code === 0 && !timedOut, code, out: out.trim() + (timedOut ? `\n(stopped after ${timeoutMs / 1000} s)` : '') }); });
+  });
+}
+
+// ---- any installed program: the Start menu list (desktop programs + Store apps), launched via shell:AppsFolder
+let appIndex = null, appIndexAt = 0;
+async function loadAppIndex(force = false) {
+  if (appIndex && !force && Date.now() - appIndexAt < 10 * 60e3) return appIndex;
+  const r = await runPS('Get-StartApps | Select-Object Name, AppID | ConvertTo-Json -Compress', 30000);
+  try { let a = JSON.parse(r.out); if (!Array.isArray(a)) a = [a]; appIndex = a.filter((x) => x && x.Name && x.AppID); appIndexAt = Date.now(); }
+  catch { appIndex = appIndex || []; }
+  return appIndex;
+}
+const normName = (s) => String(s).toLowerCase().replace(/[^a-z0-9\u1000-\u109f]+/g, '');
+function findApp(list, name) {
+  const n = normName(name);
+  if (n.length < 2) return null;
+  const c = list.filter((a) => !/uninstall|readme|release notes|documentation|manual|website|help$/i.test(a.Name))
+    .map((a) => ({ a, k: normName(a.Name) })).sort((x, y) => x.k.length - y.k.length);   // shortest name first ("Excel" before "Excel Viewer")
+  const hit = c.find((x) => x.k === n) || c.find((x) => x.k.startsWith(n)) || c.find((x) => x.k.includes(n))
+    || c.find((x) => x.k.length >= 4 && n.includes(x.k));
+  return hit ? hit.a : null;
+}
+
+const { commandRisk } = require('./commands');   // read-only commands run at once, anything else needs the user's OK
+
 const ALLOWED_TASKS = ['Organize', 'Backup', 'CleanTemp', 'Morning', 'DailyNote', 'ToPdf', 'Duplicates'];
 
 function runTask(task, folder) {
@@ -644,27 +694,63 @@ function registerIpc() {
   ipcMain.handle('open:url', async (_e, url) => {
     let u;
     try { u = new URL(url); } catch { return { ok: false, error: 'Bad link: ' + url }; }
-    if (!['https:', 'http:'].includes(u.protocol)) return { ok: false, error: 'Only web links can be opened.' };
+    if (u.protocol === 'ms-settings:') {   // a Windows Settings page
+      await shell.openExternal(u.href);
+      return { ok: true, label: 'Settings: ' + u.pathname };
+    }
+    if (!['https:', 'http:'].includes(u.protocol)) return { ok: false, error: 'Only web links and Windows Settings pages can be opened.' };
     await shell.openExternal(u.href);
     return { ok: true, label: u.hostname.replace(/^www\./, '') };
   });
-  ipcMain.handle('open:app', (_e, name) => {
+  ipcMain.handle('open:app', async (_e, name) => {
     const key = String(name).toLowerCase().trim();
     const target = APPS[key];
-    if (!target) return { ok: false, error: `I can't open "${name}". I can open: ${Object.keys(APPS).join(', ')}.` };
-    // "start" resolves App Paths (excel, winword...) and URI schemes (ms-teams:, ms-screenclip:)
-    spawn('cmd.exe', ['/d', '/s', '/c', `start "" ${target}`],
-      { windowsHide: true, detached: true, stdio: 'ignore', windowsVerbatimArguments: true }).unref();
-    return { ok: true, label: key };
+    if (target) {
+      // "start" resolves App Paths (excel, winword...) and URI schemes (ms-teams:, ms-screenclip:)
+      spawn('cmd.exe', ['/d', '/s', '/c', `start "" ${target}`],
+        { windowsHide: true, detached: true, stdio: 'ignore', windowsVerbatimArguments: true }).unref();
+      return { ok: true, label: key };
+    }
+    // anything else installed: look it up in the Start menu (refresh the list once if it's not there)
+    let app = findApp(await loadAppIndex(), name);
+    if (!app) app = findApp(await loadAppIndex(true), name);
+    if (!app) return { ok: false, error: `I couldn't find "${name}" on this PC. Is it installed? (I look in the Start menu.)` };
+    spawn(path.join(process.env.WINDIR, 'explorer.exe'), [`shell:AppsFolder\\${app.AppID}`], { detached: true, stdio: 'ignore' }).unref();
+    return { ok: true, label: app.Name };
   });
-  ipcMain.handle('close:app', (_e, name) => new Promise((resolve) => {
+  ipcMain.handle('close:app', async (_e, name) => {
     const key = String(name).toLowerCase().trim();
     const exe = CLOSE_EXE[key];
-    if (!exe) return resolve({ ok: false, error: `I can't close "${name}". I can close: ${Object.keys(CLOSE_EXE).join(', ')}.` });
-    // no /F: Windows asks the program to close normally, so unsaved work still gets a "Save?" prompt
-    const tk = spawn(path.join(process.env.WINDIR, 'System32', 'taskkill.exe'), ['/IM', exe], { windowsHide: true });
-    tk.on('close', (code) => resolve(code === 0 ? { ok: true, label: key } : { ok: false, error: `${key} doesn't seem to be open.` }));
-  }));
+    if (exe) {
+      // no /F: Windows asks the program to close normally, so unsaved work still gets a "Save?" prompt
+      const r = await new Promise((resolve) => {
+        const tk = spawn(path.join(process.env.WINDIR, 'System32', 'taskkill.exe'), ['/IM', exe], { windowsHide: true });
+        tk.on('close', (code) => resolve(code === 0));
+      });
+      return r ? { ok: true, label: key } : { ok: false, error: `${key} doesn't seem to be open.` };
+    }
+    // any other program with a window: ask it to close (like clicking X). Windows itself and this app are never touched.
+    const r = await runPS(`
+      $n = $env:PIP_CLOSE; $self = ${process.pid}
+      $keep = 'explorer','dwm','winlogon','csrss','lsass','services','svchost','system','smss','wininit','sihost','fontdrvhost','searchhost','startmenuexperiencehost','shellexperiencehost','textinputhost','ctfmon','electron','tom-eaindra','msedgewebview2','securityhealthservice'
+      $p = Get-Process | Where-Object { $_.MainWindowHandle -ne 0 -and $_.Id -ne $self -and ($keep -notcontains $_.ProcessName.ToLower()) -and
+        ($_.ProcessName -like "*$n*" -or $_.MainWindowTitle -like "*$n*" -or $_.Description -like "*$n*" -or $_.Product -like "*$n*") }
+      if (-not $p) { 'NONE'; exit }
+      $p | ForEach-Object { [void]$_.CloseMainWindow(); if ($_.MainWindowTitle) { $_.MainWindowTitle } else { $_.ProcessName } } | Select-Object -Unique`, 20000, { PIP_CLOSE: String(name).replace(/[*?[\]`]/g, '').trim() });
+    const names = r.out.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+    if (!names.length || names[0] === 'NONE') return { ok: false, error: `"${name}" doesn't seem to be open.` };
+    return { ok: true, label: names.join(', ') };
+  });
+  // AI commands: the renderer asks how risky a command is, shows it, and only runs it after the user's OK (or at once if read-only)
+  ipcMain.handle('cmd:risk', (_e, cmd) => commandRisk(cmd));
+  ipcMain.handle('cmd:run', async (_e, { cmd, approved }) => {
+    if (settings.allowCommands === false) return { ok: false, out: 'Running commands is turned off in Settings.' };
+    if (commandRisk(cmd) !== 'safe' && !approved) return { ok: false, out: 'Not approved by the user.' };
+    const r = await runPS(String(cmd), 60000);
+    fs.appendFile(path.join(app.getPath('userData'), 'commands.log'),
+      `${new Date().toISOString()}\t${approved ? 'approved' : 'auto'}\texit ${r.code}\t${String(cmd).replace(/\s+/g, ' ')}\n`, () => { });
+    return { ...r, out: r.out.length > 4000 ? r.out.slice(0, 4000) + '\n...(cut)' : r.out };
+  });
   ipcMain.handle('tts:available', () => ttsAvailable());
   // ---- self-update (editions only)
   ipcMain.handle('app:ready', () => { UPD.markHealthy(); return bootInfo || {}; });
@@ -677,6 +763,7 @@ function registerIpc() {
   });
   ipcMain.handle('tts:speak', (_e, req) => ttsSpeak(req));
   ipcMain.on('tts:warm', () => ttsWarm());
+  ipcMain.on('tts:cancel', () => ttsCancel());
   ipcMain.handle('excel:active', () => activeExcelPath());
   ipcMain.handle('excel:recent', () => recentExcelFiles());
   ipcMain.handle('excel:chart', (_e, chart) => new Promise((resolve) => {

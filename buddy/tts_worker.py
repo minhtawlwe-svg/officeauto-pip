@@ -92,39 +92,51 @@ class Connection:
 
 
 class Pool:
-    def __init__(self, size=2):
-        self.size, self.conns, self.session, self.turn = size, [], None, 0
+    """A few open connections pulling sentences from ONE shared queue: each sentence goes to whichever
+    connection is free first, and sentences of an answer the user already moved on from are skipped."""
+
+    def __init__(self, size=3):
+        self.size, self.conns, self.session, self.jobs = size, [], None, None
 
     async def start(self):
         if self.session is None:
             self.session = aiohttp.ClientSession(trust_env=True, timeout=aiohttp.ClientTimeout(total=None, sock_connect=10, sock_read=30))
             self.conns = [Connection(self.session) for _ in range(self.size)]
+            self.jobs = asyncio.Queue()
+            for c in self.conns:
+                asyncio.create_task(self.run(c))
 
     async def warm(self):
         # sent when the user asks something: (re)open the connections while the AI is still writing
         await self.start()
         await asyncio.gather(*(asyncio.wait_for(c.open(), CONNECT_TIMEOUT) for c in self.conns if not c.lock.locked()), return_exceptions=True)
 
-    def pick(self):
-        free = [c for c in self.conns if not c.lock.locked()]
-        if free:
-            return free[0]
-        self.turn = (self.turn + 1) % self.size
-        return self.conns[self.turn]
-
-    async def synth(self, text, voice, rate, pitch):
-        await self.start()
-        conn = self.pick()
-        async with conn.lock:
-            for attempt in range(2):   # retry once on a fresh connection if the old one went stale
+    async def run(self, conn):
+        while True:
+            req, fut, queued = await self.jobs.get()
+            stale = req.get("gen", 0) < CANCEL["gen"] or time.monotonic() - queued > 18   # cancelled, or too late to be useful
+            if fut.done():
+                continue
+            if stale:
+                fut.set_result(None)
+                continue
+            async with conn.lock:
                 try:
-                    audio = await conn.synth(text, voice, rate, pitch)
-                    if audio:
-                        return audio
-                except Exception:
-                    await conn.close()
-                    if attempt:
-                        break
+                    fut.set_result(await self.speak(conn, req["text"], req["voice"], req.get("rate", "+0%"), req.get("pitch", "+0Hz")))
+                except Exception as e:
+                    if not fut.done():
+                        fut.set_exception(e)
+
+    async def speak(self, conn, text, voice, rate, pitch):
+        for attempt in range(2):   # retry once on a fresh connection if the old one went stale
+            try:
+                audio = await conn.synth(text, voice, rate, pitch)
+                if audio:
+                    return audio
+            except Exception:
+                await conn.close()
+                if attempt:
+                    break
         # last resort: the normal edge_tts way (new connection), also time-limited
         async def fresh():
             audio = bytearray()
@@ -134,7 +146,14 @@ class Pool:
             return bytes(audio)
         return await asyncio.wait_for(fresh(), 15)
 
+    async def synth(self, req):
+        await self.start()
+        fut = asyncio.get_running_loop().create_future()
+        self.jobs.put_nowait((req, fut, time.monotonic()))
+        return await fut
 
+
+CANCEL = {"gen": 0}   # sentences with a lower "gen" belong to an old answer: skip them
 POOL = Pool(3)
 
 
@@ -147,8 +166,14 @@ async def handle(req):
     if req.get("warm"):
         await POOL.warm()
         return
+    if "cancel" in req:
+        CANCEL["gen"] = max(CANCEL["gen"], int(req["cancel"]))
+        return
     try:
-        audio = await POOL.synth(req["text"], req["voice"], req.get("rate", "+0%"), req.get("pitch", "+0Hz"))
+        audio = await POOL.synth(req)
+        if audio is None:
+            reply({"id": req["id"], "ok": False, "error": "cancelled"})
+            return
         reply({"id": req["id"], "ok": bool(audio), "b64": base64.b64encode(audio).decode("ascii")})
     except Exception as e:  # network down, bad voice name...
         reply({"id": req.get("id"), "ok": False, "error": str(e)[:200]})

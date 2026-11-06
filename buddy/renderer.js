@@ -9,6 +9,7 @@ const TASK_LABELS = {
 const FOLDER_TASKS = ['ToPdf', 'Duplicates'];
 // programs Pip may open (names must match main.js APPS)
 const APPS = { excel: 1, word: 1, powerpoint: 1, outlook: 1, notepad: 1, calculator: 1, explorer: 1, edge: 1, chrome: 1, teams: 1, paint: 1, snip: 1 };
+const PS_RE = /\[\[PS:([\s\S]*?)\]\]/g;   // [[PS:command]] - may contain ']' so it ends at ']]'
 const TAG_RE = /\[\[(RUN|OPEN|APP|READ|REMIND|CLOSE|NEW|REMEMBER|FEEL):[^\]]*\]\]/g;
 
 // spreadsheet loaded for analysis - stays loaded for follow-up questions
@@ -215,8 +216,13 @@ function systemPrompt(extra = '') {
       Object.entries(TASK_LABELS).map(([k, v]) => `[[RUN:${k}]] (${v})`).join(', ') +
       '. The user must click to confirm, so never claim the task already ran.',
     'To open a website, add a tag on its own line: [[OPEN:https://full-url]] (e.g. YouTube = [[OPEN:https://www.youtube.com]]; for a search use the site\'s search URL, e.g. [[OPEN:https://www.youtube.com/results?search_query=lofi+music]]). ' +
-      `To open a program, add [[APP:name]] where name is one of: ${Object.keys(APPS).join(', ')}. ` +
-      `To close a program, add [[CLOSE:name]] (same names except explorer) - it asks the program to close politely, so it may ask the user to save first. ` +
+      `To open a program, add [[APP:name]] - ANY program installed on this PC, by its usual name (e.g. [[APP:excel]], [[APP:ExpressVPN]], [[APP:Telegram]], [[APP:VLC]]; short names: ${Object.keys(APPS).join(', ')}). ` +
+      `To close a program, add [[CLOSE:name]] (any open program by name) - it asks the program to close politely, so it may ask the user to save first. ` +
+      'To open a Windows Settings page, use [[OPEN:ms-settings:<page>]] (e.g. ms-settings:display, ms-settings:network-wifi, ms-settings:bluetooth, ms-settings:sound, ms-settings:windowsupdate). ' +
+      (settings.allowCommands === false ? '' :
+        'For anything else on this PC (disk space, IP / network / Wi-Fi info, battery, system info, running programs, files and folders, installed programs, printers...), add ONE tag [[PS:<a single-line Windows PowerShell 5.1 command>]] on its own line, after one short sentence saying what you will check or do. ' +
+        'Read-only commands (Get-..., ipconfig, ping...) run at once; anything that changes the PC is shown to the user with Allow / Deny first. You then receive the command output and must answer the user from it. ' +
+        'Prefer read-only commands and keep output short (Select-Object, -First 10, Format-Table -AutoSize). Never delete files, change security/antivirus/firewall settings, download, install or uninstall anything unless the user clearly asked for exactly that. ') +
       'To create a NEW blank file, add [[NEW:excel]], [[NEW:word]] or [[NEW:powerpoint]] (this also opens the program - do not add [[APP:...]] too, and never output an empty table for it). ' +
       'These run immediately, so just say "Opening ..." / "Closing ..." in one short sentence.',
     (settings.speak !== false
@@ -250,7 +256,7 @@ function systemPrompt(extra = '') {
 window.pip.onChunk(({ id, text }) => {
   if (!streamTarget || id !== reqSeq) return;
   streamText += text;
-  const shown = streamText.replace(/^HEARD:.*\n?/, '').replace(TAG_RE, '')
+  const shown = streamText.replace(/^HEARD:.*\n?/, '').replace(PS_RE, '').replace(/\[\[PS:[\s\S]*$/, '').replace(TAG_RE, '')
     .replace(/```(chart|json|table|slides)[\s\S]*?(```|$)/g, (_, k) => ({ table: '\n\u{1F4CB} building table...\n', slides: '\n\u{1F39E} writing slides...\n' }[k] || '\n\u{1F4CA} drawing chart...\n'));
   streamTarget.classList.remove('typing');
   streamTarget.innerHTML = md(shown);
@@ -261,7 +267,7 @@ window.pip.onChunk(({ id, text }) => {
   streamSpeak(shown);   // start voicing finished sentences right away
 });
 
-async function askAI({ text = '', audio = null, display = null, extraSystem = '', tools = null, afterRead = false, copyResult = false, autoPpt = false }) {
+async function askAI({ text = '', audio = null, display = null, extraSystem = '', tools = null, afterRead = false, copyResult = false, autoPpt = false, cmdDepth = 0 }) {
   if (busy) return;
   busy = true; wake();
   stopSpeaking();   // a new question interrupts the previous answer's voice
@@ -291,6 +297,7 @@ async function askAI({ text = '', audio = null, display = null, extraSystem = ''
   if (feel && feltFor !== id) { feltFor = id; showFeeling(feel[1].toLowerCase()); }
   // action tags count wherever the model put them - even on the HEARD line
   const tasks = [...raw.matchAll(/\[\[RUN:(\w+)\]\]/g)].map((m) => m[1]).filter((t) => TASK_LABELS[t]);
+  const cmds = settings.allowCommands === false ? [] : [...raw.matchAll(PS_RE)].map((m) => m[1].trim()).filter(Boolean);
   const opens = [...raw.matchAll(/\[\[(OPEN|APP|CLOSE|NEW):([^\]]+)\]\]/g)].map((m) => ({ kind: m[1], target: m[2].trim().toLowerCase() }));
   // safety net: the model said "Opening Excel." / "Closing Notepad." but forgot the tag
   if (!opens.length) {
@@ -306,10 +313,10 @@ async function askAI({ text = '', audio = null, display = null, extraSystem = ''
     answer = raw.slice(last.index + last[0].length);
     if (/^[\d\s:.,\-၀-၉]*$/.test(heard)) heard = '';   // only timestamps / digits = no real speech
   }
-  answer = answer.replace(TAG_RE, '').replace(/(\*\*|__|`|")\s*\1/g, '').trim();   // drop empty **...** left where a tag was
+  answer = answer.replace(PS_RE, '').replace(TAG_RE, '').replace(/(\*\*|__|`|")\s*\1/g, '').trim();   // drop empty **...** left where a tag was
   if (voiceEl) {
     const nothing = !heard || /^\(nothing\)$/i.test(heard);
-    if (nothing && !opens.length && !tasks.length && answer.trim().length < 3) {
+    if (nothing && !opens.length && !tasks.length && !cmds.length && answer.trim().length < 3) {
       voiceEl.remove(); target.remove(); say("I didn't catch that - try again?"); mood('worried', 2000);
       const lv = lastVoice ? `mic level ${lastVoice.rms.toFixed(3)}, ${lastVoice.secs.toFixed(1)}s` : '';
       sys(`Didn't catch any words (${lv}; AI heard: "${hms.length ? hms[hms.length - 1][1].trim() : raw.trim().slice(0, 60)}").\n` +
@@ -325,7 +332,7 @@ async function askAI({ text = '', audio = null, display = null, extraSystem = ''
   const memTags = [...raw.matchAll(/\[\[REMEMBER:([^\]]+)\]\]/g)].map((m) => m[1].trim()).filter(Boolean);
   const remTags = [...raw.matchAll(/\[\[REMIND:([^|\]]+)\|([^\]]+)\]\]/g)].map((m) => ({ when: m[1].trim(), text: m[2].trim() }));
   const wantsRead = /\[\[READ:/.test(raw) && !afterRead;
-  const anything = opens.length || tasks.length || charts.length || wantsRead || blocks.table.length || blocks.slides.length || remTags.length;
+  const anything = opens.length || tasks.length || cmds.length || charts.length || wantsRead || blocks.table.length || blocks.slides.length || remTags.length;
   if (!answer) answer = anything ? '\u{1F44D}' : heard;   // model squeezed everything onto the HEARD line
   for (const o of opens.slice(0, 3)) {
     let r;
@@ -360,6 +367,12 @@ async function askAI({ text = '', audio = null, display = null, extraSystem = ''
   const histUser = heard || (usedAttachment ? `[file ${usedAttachment.name}] ${text}` : text);
   history.push({ role: 'user', text: histUser.slice(0, 4000) }, { role: 'model', text: answer.slice(0, 4000) });
   if (panel.classList.contains('hidden')) say(answer.replace(/[#*`]/g, '').slice(0, 140) + (answer.length > 140 ? '...' : ''), 9000);
+  if (cmds.length && cmdDepth < 3) {
+    // the model asked to run a command: run it (after the user's OK if it changes something), then let it explain the result
+    const result = await runCommandTag(target, cmds[0]);
+    if (result) return askAI({ text: result, display: false, cmdDepth: cmdDepth + 1 });
+    return answer;
+  }
   if (wantsRead) {
     // the model asked for the data: load it, then repeat the user's request with the data attached
     const request = heard || text;
@@ -430,6 +443,47 @@ async function loadData() {
     add('Cancel', '', () => finish(null));
     log.scrollTop = log.scrollHeight;
   });
+}
+
+// ---- commands the AI asked to run ([[PS:...]]): read-only ones run at once, anything else waits for Allow / Deny.
+// Returns the result text for the AI (so it can explain it), or null when the user said no.
+async function runCommandTag(target, cmd) {
+  const risk = await window.pip.cmdRisk(cmd);
+  const card = document.createElement('div');
+  card.className = `cmdCard ${risk}`;
+  const head = { safe: '🔍 Checking (read-only - nothing is changed)',
+    change: '⚙ Wants to run this - it changes something on this PC',
+    danger: '⚠ RISKY - this can delete, stop or change important things' }[risk];
+  card.innerHTML = `<div class="cmdHead">${head}</div><code>${esc(cmd)}</code>`;
+  target.appendChild(card); log.scrollTop = log.scrollHeight;
+  let approved = false;
+  if (risk !== 'safe') {
+    const ok = await new Promise((resolve) => {
+      const row = document.createElement('div'); row.className = 'cmdBtns';
+      const no = document.createElement('button'); no.type = 'button'; no.textContent = 'Deny';
+      const yes = document.createElement('button'); yes.type = 'button';
+      yes.textContent = risk === 'danger' ? 'Allow anyway' : 'Allow'; yes.className = risk === 'danger' ? 'dangerBtn' : 'primary';
+      no.onclick = () => resolve(false); yes.onclick = () => resolve(true);
+      row.append(no, yes); card.appendChild(row);
+      openPanel(); mood('worried', 3000); say('Allow this? 👇', 15000);
+      log.scrollTop = log.scrollHeight;
+    });
+    card.querySelector('.cmdBtns').remove();
+    if (!ok) {
+      card.insertAdjacentHTML('beforeend', '<div class="cmdOut">✖ Denied - nothing was run.</div>');
+      history.push({ role: 'user', text: `(I denied the command "${cmd}" - it was NOT run. Don't run it again unless I ask.)` });
+      return null;
+    }
+    approved = true;
+  }
+  const status = document.createElement('div'); status.className = 'cmdOut'; status.textContent = 'running...';
+  card.appendChild(status); mood('think');
+  const r = await window.pip.cmdRun(cmd, approved);
+  const det = document.createElement('details');
+  det.innerHTML = `<summary>${r.ok ? '✔ done' : '✖ error'} - show output</summary><pre>${esc(r.out || '(no output)')}</pre>`;
+  status.replaceWith(det);
+  return `(Result of the command you ran: ${cmd}\nExit: ${r.ok ? 'success' : 'failed (code ' + r.code + ')'}\nOutput:\n"""\n${(r.out || '(no output)').slice(0, 3500)}\n"""\n` +
+    'Now answer my request from this result - short and friendly, in my language. Don\'t repeat the raw command. Only run another command if it is really needed.)';
 }
 
 function findCol(t, name) {
@@ -689,9 +743,14 @@ const neuralOn = () => settings.speak !== false && settings.naturalVoice !== fal
 const isSpeaking = () => speechSynthesis.speaking || speechPlaying || !!(ttsAudio && !ttsAudio.paused);
 function stopSpeaking() {
   ttsGen++; speechQ = []; spokenNow.clear();
+  window.pip.ttsCancel();   // drop the old answer's sentences still waiting in the voice helper
   if (ttsAudio) { ttsAudio.pause(); ttsAudio = null; }
+  // a paused clip never fires "ended": release the speech loop ourselves, or it waits forever
+  // and every later answer stays silent (the "silent after a few quick questions" bug)
+  if (clipDone) { const d = clipDone; clipDone = null; d(); }
   speechSynthesis.cancel();
 }
+let clipDone = null;
 const toPlain = (text) => text.replace(/```[\s\S]*?```/g, ' ').replace(/[#*`>_|]/g, '').replace(/\[(.*?)\]\(.*?\)/g, '$1')
   .replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/gu, '').replace(/(drawing chart|building table|writing slides)\.\.\./g, '');
 // split at Burmese "\u104B", ! ? , a "." followed by a space, or a line break (so "1.5" stays whole)
@@ -729,12 +788,16 @@ async function pumpSpeech() {
   while (speechQ.length) {
     const it = speechQ.shift();
     const r = await it.clip;
-    if (it.gen !== ttsGen || !r.ok) continue;
+    if (it.gen !== ttsGen || !r.ok) continue;   // skip clips of an answer the user already moved on from
     await new Promise((resolve) => {
-      ttsAudio = new Audio(r.url);
-      ttsAudio.onplay = () => mood('talk');
-      ttsAudio.onended = ttsAudio.onerror = resolve;
-      ttsAudio.play().catch(resolve);
+      const audio = new Audio(r.url);
+      let safety = null;
+      const done = () => { clearTimeout(safety); if (clipDone === done) clipDone = null; resolve(); };
+      clipDone = done; ttsAudio = audio;
+      audio.onplay = () => mood('talk');
+      audio.onended = audio.onerror = audio.onpause = done;
+      audio.onloadedmetadata = () => { safety = setTimeout(done, (audio.duration || 20) * 1000 + 3000); };   // never wait longer than the clip
+      audio.play().catch(done);
     });
   }
   speechPlaying = false; ttsAudio = null;
@@ -1143,6 +1206,7 @@ async function openSettings() {
   $('#sSizeVal').textContent = Math.round((settings.charScale || 1) * 100) + '%';
   $('#sMoments').checked = settings.moments !== false;
   $('#sHotkey').value = settings.hotkeyMod || 'Ctrl+Alt';
+  $('#sCmds').checked = settings.allowCommands !== false;
   $('#sVolume').value = settings.soundVolume ?? 0.6;
   $('#sFallback').checked = settings.fallback !== false;
   $('#sProxy').value = settings.proxy || '';
@@ -1225,7 +1289,7 @@ $('#sSave').onclick = async () => {
     autoStart: $('#sAuto').checked, character: $('#sChar').value, looks: closeLookEditor(true),
     autoUpdate: $('#sAutoUpd').checked,
     charScale: Number($('#sSize').value), sound: $('#sSound').checked, moments: $('#sMoments').checked, soundVolume: Number($('#sVolume').value),
-    voiceLang: $('#sVoiceLang').value, micId: $('#sMic').value, hotkeyMod: $('#sHotkey').value,
+    voiceLang: $('#sVoiceLang').value, micId: $('#sMic').value, hotkeyMod: $('#sHotkey').value, allowCommands: $('#sCmds').checked,
   });
   applyCharacter(); showModelTag(); applyHotkeyLabels();
   if (settings.hotkeyFailed?.length) sys(`⚠ These shortcut keys are taken by another app: ${settings.hotkeyFailed.join(', ')}. Pick other keys in Settings → Shortcut keys.`);
