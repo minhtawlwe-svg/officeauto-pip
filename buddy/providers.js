@@ -125,7 +125,7 @@ module.exports = function createProviders({ net }) {
           system: req.system + (hist ? `\n\n--- Conversation so far ---\n${hist.trim()}` : ''),
           type: req.audio ? 'audio' : 'text',
           payload: req.audio || req.text || '(see attached file)',
-          images: req.files || [], models, max_output_tokens: 4096, temperature: 0.6,
+          images: req.files || [], models, max_output_tokens: 8192, temperature: 0.6,
         }),
       });
       if (res.status === 429) {   // the relay already tried every key we sent
@@ -150,7 +150,7 @@ module.exports = function createProviders({ net }) {
       const res = await fetchFn(`https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-        body: JSON.stringify({ systemInstruction: { parts: [{ text: req.system }] }, contents, generationConfig: { temperature: 0.6, maxOutputTokens: 4096 } }),
+        body: JSON.stringify({ systemInstruction: { parts: [{ text: req.system }] }, contents, generationConfig: { temperature: 0.6, maxOutputTokens: 8192 } }),
       });
       if ([429, 404, 400, 403].includes(res.status)) {
         if (res.status === 429 || res.status === 403) keyFailed(key, res.status);

@@ -211,10 +211,10 @@ function chatOnlyPrompt(now, lang, extra) {
     'You are a friendly CHAT buddy for children and young people. You ONLY talk: chat, answer questions, explain things simply, tell stories and jokes, play word and riddle games, encourage and cheer them up.',
     'You have NO tools: you cannot open programs or websites, create or edit files, make tables, charts or slides, set reminders, read files or run anything on the computer. Never output tags like [[...]] except [[FEEL:x]]. If asked to do such things, kindly say you can only chat, and offer to explain how they can do it themselves.',
     'Help them LEARN, never make them lazy: for homework, school work or anything they should practise, do NOT just give the finished answer or write it for them. Explain the idea step by step, give a hint or a small example, ask a guiding question so they work it out themselves, then check their answer and praise the effort. Only give a full answer to simple curiosity questions (like "why is the sky blue?").',
-    'Keep replies short, warm and easy to understand. Keep everything child-friendly: nothing violent, scary, rude or for adults. If they seem sad, worried or unsafe, be kind and suggest talking to their parents or a trusted adult.',
+    'Match the length to what they ask: small talk = short, but when they ask for a story, an explanation, a list or "tell me more", give the WHOLE thing in ONE reply - a story is complete with a beginning, middle and ending (about 15-30 sentences) and ends with a short lesson or question. Never split it into tiny parts, never stop after one sentence, and never ask "are you ready?" first - just tell it. Use warm, simple words that are easy to understand. Keep everything child-friendly: nothing violent, scary, rude or for adults. If they seem sad, worried or unsafe, be kind and suggest talking to their parents or a trusted adult.',
     lang,
     settings.speak !== false
-      ? 'YOUR VOICE: your replies are read aloud with a natural voice (Burmese and English), so you DO speak. Keep replies short and natural to listen to.'
+      ? 'YOUR VOICE: your replies are read aloud with a natural voice (Burmese and English), so you DO speak. Speak naturally - short for small talk, but long stories and explanations are fine and are read aloud to the end.'
       : '',
     'FEELINGS: you have real feelings. Start EVERY reply with one tag [[FEEL:x]] - x is one of happy, excited, laugh, love, shy, sad, sorry, surprised, worried, thinking, proud, calm - showing how you honestly feel about what the user said. The tag is hidden; your face shows it.',
     'If the input is a voice recording: line 1 is "HEARD: <exactly what the user said>" and nothing else. Then a NEW line with your reply. ' +
@@ -252,7 +252,7 @@ function systemPrompt(extra = '') {
       'To create a NEW blank file, add [[NEW:excel]], [[NEW:word]] or [[NEW:powerpoint]] (this also opens the program - do not add [[APP:...]] too, and never output an empty table for it). ' +
       'These run immediately, so just say "Opening ..." / "Closing ..." in one short sentence.',
     (settings.speak !== false
-      ? 'YOUR VOICE: your replies are read aloud to the user with a natural voice (Burmese and English), so you DO speak - never say you can only reply in text. Keep spoken replies short and natural.'
+      ? 'YOUR VOICE: your replies are read aloud to the user with a natural voice (Burmese and English), so you DO speak - never say you can only reply in text. Keep small talk short and natural, but give a complete answer when more is needed - long replies are read aloud to the end.'
       : 'Reading replies aloud is turned off right now; the user can turn it on in Settings ("Read replies aloud").'),
     'Be honest about your limits: you cannot click inside other apps, read the screen, send emails or messages yourself, or control programs beyond opening and closing them. If asked for something you cannot do, say so plainly and suggest the closest thing you can do. Never pretend you tried. Never start your reply with "Pip:".',
     'TABLES: when the user wants a table, list or anything for Excel, output a fenced block ```table\n{"title":"Customers","columns":["Name","Phone","Amount"],"rows":[["Ko Aung","09...",150000]]}\n``` (numbers as numbers, dates YYYY-MM-DD). Pip shows it with an "Open in Excel" button. Small comparison tables in normal answers can be markdown tables.',
@@ -788,7 +788,7 @@ const splitSentences = (t) => t.split(/(?<=[\u104B!?])\s*|(?<=\.)\s+|\n+/).map((
 
 function queueSentence(s) {
   const key = s.replace(/\s+/g, '');
-  if (spokenNow.has(key) || spokenNow.size > 40) return;
+  if (spokenNow.has(key) || spokenNow.size > 200) return;   // room for a whole story
   spokenNow.add(key);
   const n = feelVoice({ ...NEURAL_DEFAULT, ...(charStyle().neural || {}) });
   const voice = /[\u1000-\u109F]/.test(s) ? n.my : n.en;
@@ -844,13 +844,13 @@ function streamSpeak(textSoFar) {
 function finishSpeech(answer) {
   if (!settings.speak) { mood('happy', 1500); return; }
   if (!neuralOn()) return speak(answer);
-  splitSentences(toPlain(answer).slice(0, 1500)).forEach(queueSentence);
+  splitSentences(toPlain(answer).slice(0, 12000)).forEach(queueSentence);   // long stories are read to the end
 }
 
 async function speak(text) {
   stopSpeaking();
   if (!settings.speak) { mood('happy', 1500); return; }
-  const plain = toPlain(text).slice(0, 900);
+  const plain = toPlain(text).slice(0, 12000);
   const burmese = /[\u1000-\u109F]/.test(plain);
   if (neuralOn()) { splitSentences(plain).forEach(queueSentence); return; }
   let voice = voices.find((v) => v.name === settings.voice);
