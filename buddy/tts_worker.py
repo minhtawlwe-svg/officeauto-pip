@@ -15,6 +15,7 @@ import base64
 import json
 import sys
 import threading
+import time
 from xml.sax.saxutils import escape
 
 import aiohttp
@@ -29,17 +30,28 @@ SPEECH_CONFIG = (
     '{"context":{"synthesis":{"audio":{"metadataoptions":{"sentenceBoundaryEnabled":"true",'
     '"wordBoundaryEnabled":"false"},"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}\r\n'
 )
+CONNECT_TIMEOUT = 8   # s to open a connection
+REPLY_TIMEOUT = 6     # s of silence from the service before the connection counts as dead
+STALE_AFTER = 60      # s idle after which a connection is replaced (the service drops idle ones after ~1-1.5 min)
 
 
 class Connection:
     """One reusable websocket to the voice service; one sentence at a time."""
 
     def __init__(self, session):
-        self.session, self.ws, self.lock = session, None, asyncio.Lock()
+        self.session, self.ws, self.lock, self.last = session, None, asyncio.Lock(), 0.0
+        self.opening = asyncio.Lock()   # warm-up and a sentence must not both open a connection
 
     async def open(self):
+        async with self.opening:
+            await self._open()
+
+    async def _open(self):
         if self.ws is not None and not self.ws.closed:
-            return
+            if time.monotonic() - self.last < STALE_AFTER:
+                return
+            await self.close()   # idle too long: the service has probably dropped it, so reconnect now
+        self.last = time.monotonic()
         url = (f"{cm.WSS_URL}&ConnectionId={cm.connect_id()}"
                f"&Sec-MS-GEC={cm.DRM.generate_sec_ms_gec()}&Sec-MS-GEC-Version={cm.SEC_MS_GEC_VERSION}")
         self.ws = await self.session.ws_connect(url, compress=15, headers=cm.DRM.headers_with_muid(cm.WSS_HEADERS), ssl=cm._SSL_CTX)
@@ -47,23 +59,27 @@ class Connection:
     async def close(self):
         if self.ws is not None:
             try:
-                await self.ws.close()
+                await asyncio.wait_for(self.ws.close(), 2)   # a dead connection never answers the close
             except Exception:
                 pass
         self.ws = None
 
     async def synth(self, text, voice, rate, pitch):
-        await self.open()
+        await asyncio.wait_for(self.open(), CONNECT_TIMEOUT)
         ws = self.ws
         await ws.send_str(f"X-Timestamp:{cm.date_to_string()}\r\n" + SPEECH_CONFIG)
         ssml = cm.mkssml(TTSConfig(voice, rate, "+0%", pitch, "SentenceBoundary"), escape(cm.remove_incompatible_characters(text)))
         await ws.send_str(cm.ssml_headers_plus_data(cm.connect_id(), cm.date_to_string(), ssml))
         audio = bytearray()
-        async for msg in ws:
+        while True:
+            # a connection the server silently dropped never answers: give up after a few seconds
+            # (before this, it waited forever and kept the connection locked -> the voice went silent)
+            msg = await ws.receive(timeout=REPLY_TIMEOUT)
             if msg.type == aiohttp.WSMsgType.TEXT:
                 raw = msg.data.encode("utf-8")
                 headers, _ = cm.get_headers_and_data(raw, raw.find(b"\r\n\r\n"))
                 if headers.get(b"Path") == b"turn.end":
+                    self.last = time.monotonic()
                     return bytes(audio)
             elif msg.type == aiohttp.WSMsgType.BINARY:
                 n = int.from_bytes(msg.data[:2], "big")
@@ -85,8 +101,9 @@ class Pool:
             self.conns = [Connection(self.session) for _ in range(self.size)]
 
     async def warm(self):
+        # sent when the user asks something: (re)open the connections while the AI is still writing
         await self.start()
-        await asyncio.gather(*(c.open() for c in self.conns), return_exceptions=True)
+        await asyncio.gather(*(asyncio.wait_for(c.open(), CONNECT_TIMEOUT) for c in self.conns if not c.lock.locked()), return_exceptions=True)
 
     def pick(self):
         free = [c for c in self.conns if not c.lock.locked()]
@@ -108,12 +125,14 @@ class Pool:
                     await conn.close()
                     if attempt:
                         break
-        # last resort: the normal edge_tts way (new connection)
-        audio = bytearray()
-        async for chunk in edge_tts.Communicate(text, voice, rate=rate, pitch=pitch).stream():
-            if chunk["type"] == "audio":
-                audio += chunk["data"]
-        return bytes(audio)
+        # last resort: the normal edge_tts way (new connection), also time-limited
+        async def fresh():
+            audio = bytearray()
+            async for chunk in edge_tts.Communicate(text, voice, rate=rate, pitch=pitch).stream():
+                if chunk["type"] == "audio":
+                    audio += chunk["data"]
+            return bytes(audio)
+        return await asyncio.wait_for(fresh(), 15)
 
 
 POOL = Pool(3)
