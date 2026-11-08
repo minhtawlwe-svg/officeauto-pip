@@ -228,12 +228,12 @@
 
   CHAR_STYLE.eaindra = {
     pitch: 1.25, rate: 1.0, voiceHint: /Zira|Aria|Jenny|Ava|Emma|Female/i,
-    neural: { my: 'my-MM-NilarNeural', en: 'en-US-AnaNeural', pitch: '+8Hz', rate: '+0%' },
+    neural: { my: 'my-MM-NilarNeural', en: 'en-US-AnaNeural', zh: 'zh-CN-XiaoyiNeural', pitch: '+8Hz', rate: '+0%' },
     hi: 'Hi hi~ 👋', pet: 'Hehe~ thank you! 💙', sleepy: 'Eaindra is resting a little... zzz',
   };
   CHAR_STYLE.tom = {
     pitch: 1.05, rate: 1.05, voiceHint: /David|Mark|Guy|Andrew|Male/i,
-    neural: { my: 'my-MM-ThihaNeural', en: 'en-US-AndrewNeural', pitch: '+6Hz', rate: '+5%' },
+    neural: { my: 'my-MM-ThihaNeural', en: 'en-US-AndrewNeural', zh: 'zh-CN-YunxiaNeural', pitch: '+6Hz', rate: '+5%' },
     hi: 'Hey! 👋', pet: 'Haha, thanks! 😄', sleepy: 'Tom is taking a nap... zzz',
   };
   CHAR_SOUNDS.eaindra = {

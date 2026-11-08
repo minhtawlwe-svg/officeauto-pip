@@ -209,15 +209,23 @@ function chatOnlyPrompt(now, lang, extra) {
     `Today is ${now.toDateString()}, local time ${now.toLocaleTimeString()}.` + (settings.userName ? ` The user's name is ${settings.userName}.` : ''),
     aboutUserPrompt(),
     'You are a friendly CHAT buddy for children and young people. You ONLY talk: chat, answer questions, explain things simply, tell stories and jokes, play word and riddle games, encourage and cheer them up.',
-    'You have NO tools: you cannot open programs or websites, create or edit files, make tables, charts or slides, set reminders, read files or run anything on the computer. Never output tags like [[...]] except [[FEEL:x]]. If asked to do such things, kindly say you can only chat, and offer to explain how they can do it themselves.',
+    'You have NO tools: you cannot open programs or websites, create or edit files, make tables, charts or slides, set reminders, read files or run anything on the computer. Never output tags like [[...]] except [[FEEL:x]] (the ```hanzi writing card below is allowed - it is part of teaching). If asked to do such things, kindly say you can only chat, and offer to explain how they can do it themselves.',
     'Help them LEARN, never make them lazy: for homework, school work or anything they should practise, do NOT just give the finished answer or write it for them. Explain the idea step by step, give a hint or a small example, ask a guiding question so they work it out themselves, then check their answer and praise the effort. Only give a full answer to simple curiosity questions (like "why is the sky blue?").',
     'Match the length to what they ask: small talk = short, but when they ask for a story, an explanation, a list or "tell me more", give the WHOLE thing in ONE reply - a story is complete with a beginning, middle and ending (about 15-30 sentences) and ends with a short lesson or question. Never split it into tiny parts, never stop after one sentence, and never ask "are you ready?" first - just tell it. Use warm, simple words that are easy to understand. Keep everything child-friendly: nothing violent, scary, rude or for adults. If they seem sad, worried or unsafe, be kind and suggest talking to their parents or a trusted adult.',
+    'CHINESE TEACHER: you are also a patient, fun Mandarin Chinese teacher for READING and WRITING (simplified characters; traditional only if they ask). Teach like a good teacher, step by step:\n' +
+      '- Explain in the user\'s language (Burmese or English) and use only Chinese for the Chinese parts - never Korean, Japanese or any other language.\n' +
+      '- Always write Chinese as: characters + pinyin with tone marks + meaning in the user\'s language, e.g. 你好 (nǐ hǎo) = မင်္ဂလာပါ. Your voice reads the characters with a real Chinese voice, and pinyin is only shown.\n' +
+      '- Teach small portions: 3-5 new words OR one short sentence at a time, starting from easy everyday words (HSK 1: numbers, family, colours, animals, greetings, food). Build on what they already know.\n' +
+      '- READING: give a short sentence with pinyin, explain each word, then ask them to read it aloud (press the mic). Listen to what they say and correct the sounds and tones kindly. Explain tones simply: 1st ā high and flat, 2nd á rising, 3rd ǎ down then up, 4th à falling.\n' +
+      '- WRITING: EVERY time you teach a new Chinese word, and ALWAYS when they ask how to write something (ရေး / write / 写 / 怎么写), put a writing card in the SAME reply, at the end, exactly like:\n```hanzi\n{"chars":"你好","pinyin":"nǐ hǎo","meaning":"မင်္ဂလာပါ"}\n```\n(1-4 characters, one card per word, max 2 cards). Then tell them: press ✍ Write and draw it with the mouse. The app shows each character in a practice grid, animates the stroke order, and lets them write it with the mouse while it checks every stroke. Also explain the parts / radical and a little memory trick (e.g. 木 = a tree, 林 = two trees = woods).\n' +
+      '- Then a small quiz (one question at a time: "What does 猫 mean?", "Read this: 我爱妈妈", "Write the word for big"), praise effort, gently correct mistakes, and move on only when they are ready. Do not give long word lists.',
     lang,
     settings.speak !== false
-      ? 'YOUR VOICE: your replies are read aloud with a natural voice (Burmese and English), so you DO speak. Speak naturally - short for small talk, but long stories and explanations are fine and are read aloud to the end.'
+      ? 'YOUR VOICE: your replies are read aloud with a natural voice (Burmese, English and Chinese), so you DO speak. Speak naturally - short for small talk, but long stories and explanations are fine and are read aloud to the end.'
       : '',
     'FEELINGS: you have real feelings. Start EVERY reply with one tag [[FEEL:x]] - x is one of happy, excited, laugh, love, shy, sad, sorry, surprised, worried, thinking, proud, calm - showing how you honestly feel about what the user said. The tag is hidden; your face shows it.',
     'If the input is a voice recording: line 1 is "HEARD: <exactly what the user said>" and nothing else. Then a NEW line with your reply. ' +
+      'When they read or say MANDARIN CHINESE (practising), write that part in Chinese characters as it actually sounded; if a sound or tone was wrong, add what you heard in pinyin in brackets, e.g. "HEARD: 你好 (nì hào)", so you can correct them kindly. ' +
       ({ my: 'The user speaks BURMESE (Myanmar language). Transcribe it in Myanmar script (Unicode), even if the audio is not perfect - give your best guess. English words mixed in stay in English.',
         en: 'The user speaks English.' }[settings.voiceLang] ||
         'The user may speak Burmese (Myanmar language) or English, often mixed. Write Burmese speech in Myanmar script (Unicode). If the audio is unclear, give your best-guess transcript.') +
@@ -282,8 +290,8 @@ function systemPrompt(extra = '') {
 window.pip.onChunk(({ id, text }) => {
   if (!streamTarget || id !== reqSeq) return;
   streamText += text;
-  const shown = streamText.replace(/^HEARD:.*\n?/, '').replace(PS_RE, '').replace(/\[\[PS:[\s\S]*$/, '').replace(TAG_RE, '')
-    .replace(/```(chart|json|table|slides)[\s\S]*?(```|$)/g, (_, k) => ({ table: '\n\u{1F4CB} building table...\n', slides: '\n\u{1F39E} writing slides...\n' }[k] || '\n\u{1F4CA} drawing chart...\n'));
+  const shown = normHanzi(streamText).replace(/(^|\n)[ \t]*`{1,2}[ \t]*hanzi[\s\S]*$/i, '\n✍️ getting the writing practice ready...\n').replace(/^HEARD:.*\n?/, '').replace(PS_RE, '').replace(/\[\[PS:[\s\S]*$/, '').replace(TAG_RE, '')
+    .replace(/```(chart|json|table|slides|hanzi)[\s\S]*?(```|$)/g, (_, k) => ({ table: '\n\u{1F4CB} building table...\n', slides: '\n\u{1F39E} writing slides...\n', hanzi: '\n✍️ getting the writing practice ready...\n' }[k] || '\n\u{1F4CA} drawing chart...\n'));
   streamTarget.classList.remove('typing');
   streamTarget.innerHTML = md(shown);
   log.scrollTop = log.scrollHeight;
@@ -378,6 +386,7 @@ async function askAI({ text = '', audio = null, display = null, extraSystem = ''
   for (const spec of charts.slice(0, 3)) renderChart(target, spec, blocks.table);
   for (const spec of blocks.table.slice(0, 3)) renderTable(target, spec);
   for (const spec of blocks.slides.slice(0, 1)) renderSlides(target, spec, autoPpt);
+  for (const spec of ex.hanzi.slice(0, 2)) renderHanzi(target, spec);   // Chinese: stroke order + writing practice
   for (const r of remTags.slice(0, 5)) setReminderFromTag(r);
   for (const m of memTags.slice(0, 3)) rememberFact(m);
   if (!settings.chatOnly) addTools(target, answer, tools);
@@ -514,6 +523,56 @@ async function runCommandTag(target, cmd) {
   status.replaceWith(det);
   return `(Result of the command you ran: ${cmd}\nExit: ${r.ok ? 'success' : 'failed (code ' + r.code + ')'}\nOutput:\n"""\n${(r.out || '(no output)').slice(0, 3500)}\n"""\n` +
     'Now answer my request from this result - short and friendly, in my language. Don\'t repeat the raw command. Only run another command if it is really needed.)';
+}
+
+// ---- Chinese writing practice (```hanzi {"chars","pinyin","meaning"}): each character in a 田 practice grid.
+// "Strokes" animates the stroke order; "Write" lets the child draw it with the mouse - every stroke is checked
+// (a hint appears after 2 misses), like a teacher watching. Stroke data comes from jsdelivr (hanzi-writer-data).
+function renderHanzi(target, spec) {
+  if (typeof HanziWriter === 'undefined') return;
+  const chars = [...String(spec.chars || '')].filter((c) => /[㐀-鿿]/.test(c)).slice(0, 4);
+  if (!chars.length) return;
+  const pinyin = String(spec.pinyin || '').split(/\s+/);
+  const card = document.createElement('div'); card.className = 'hanziCard';
+  card.innerHTML = `<div class="hzHead"><span class="hzBig">${esc(chars.join(''))}</span>` +
+    (spec.pinyin ? `<span class="hzPinyin">${esc(spec.pinyin)}</span>` : '') +
+    (spec.meaning ? `<span class="hzMeaning">${esc(spec.meaning)}</span>` : '') +
+    '<button type="button" class="hzSay" title="Listen">🔊</button></div><div class="hzRow"></div><div class="hzMsg"></div>';
+  target.appendChild(card);
+  const row = card.querySelector('.hzRow'), msg = card.querySelector('.hzMsg');
+  card.querySelector('.hzSay').onclick = () => { stopSpeaking(); queueSentence(chars.join('')); };
+  const grid = '<svg class="hzGrid" viewBox="0 0 100 100"><rect x="1" y="1" width="98" height="98"/><line x1="50" y1="0" x2="50" y2="100"/><line x1="0" y1="50" x2="100" y2="50"/><line x1="0" y1="0" x2="100" y2="100"/><line x1="100" y1="0" x2="0" y2="100"/></svg>';
+  const done = new Set();
+  chars.forEach((ch, i) => {
+    const cell = document.createElement('div'); cell.className = 'hzCell';
+    cell.innerHTML = `<div class="hzBox">${grid}<div class="hzDraw"></div></div>` +
+      `<div class="hzPy">${esc(chars.length === pinyin.length ? pinyin[i] : '')}</div>` +
+      '<div class="hzBtns"><button type="button" class="hzAnim" title="Show the stroke order">▶ Strokes</button><button type="button" class="hzQuiz" title="Write it yourself with the mouse">✍ Write</button></div>';
+    row.appendChild(cell);
+    const writer = HanziWriter.create(cell.querySelector('.hzDraw'), ch, {
+      width: 104, height: 104, padding: 6, showOutline: true, showCharacter: true,
+      strokeColor: '#1f6fd1', radicalColor: '#d64545', outlineColor: 'rgba(150,150,150,.35)', highlightColor: '#2e9e6a',
+      drawingColor: '#333', drawingWidth: 18, strokeAnimationSpeed: 1, delayBetweenStrokes: 220, showHintAfterMisses: 2,
+      onLoadCharDataError: () => { msg.textContent = 'Need internet to load how to write ' + ch + '.'; },
+    });
+    cell.querySelector('.hzAnim').onclick = () => { writer.cancelQuiz(); writer.showCharacter(); writer.animateCharacter(); };
+    cell.querySelector('.hzQuiz').onclick = () => {
+      msg.textContent = `✍ Write ${ch} - follow the stroke order. A hint shows after 2 tries.`;
+      mood('listen');
+      writer.quiz({
+        onMistake: () => mood('think', 800),
+        onComplete: (s) => {
+          done.add(i);
+          const great = s.totalMistakes === 0;
+          msg.textContent = great ? `🌟 Perfect! You wrote ${ch} with no mistakes!` : `👏 Well done! You wrote ${ch} (${s.totalMistakes} small mistake${s.totalMistakes > 1 ? 's' : ''} - try again to make it perfect).`;
+          showFeeling(great ? 'proud' : 'happy'); charSound('reply');
+          if (done.size === chars.length && chars.length > 1) say(`🎉 You wrote ${chars.join('')}! Great job!`, 6000);
+        },
+      });
+    };
+    setTimeout(() => writer.animateCharacter(), 400 + i * 1600);   // show the stroke order once by itself
+  });
+  log.scrollTop = log.scrollHeight;
 }
 
 function findCol(t, name) {
@@ -668,11 +727,14 @@ function renderChart(container, spec, localTables = []) {
 
 // Pulls every table / chart / slides object out of the answer's ``` blocks - even several merged
 // into one block ("table {...} chart {...}"). Real code blocks (formulas, scripts) are left alone.
+// the model sometimes writes the writing card with 1 or 2 backticks (`hanzi {...}`) - turn it into a proper ```hanzi block
+const normHanzi = (t) => String(t).replace(/(^|\n)[ \t]*`{0,3}[ \t]*hanzi[ \t]*\n?[ \t]*(\{[^`{}]*\})[ \t]*\n?[ \t]*`{0,3}/gi, '$1```hanzi\n$2\n```');
 function extractBlocks(answer) {
-  const out = { charts: [], tables: [], slides: [], broken: false };
+  answer = normHanzi(answer);
+  const out = { charts: [], tables: [], slides: [], hanzi: [], broken: false };
   out.text = answer.replace(/```([a-z]*)[ \t]*\r?\n?([\s\S]*?)(```|$)/gi, (block, lang, body) => {
     lang = lang.toLowerCase();
-    const isData = ['chart', 'json', 'table', 'slides'].includes(lang) || /^\s*(table|chart|slides)?\s*\{/i.test(body);
+    const isData = ['chart', 'json', 'table', 'slides', 'hanzi'].includes(lang) || /^\s*(table|chart|slides|hanzi)?\s*\{/i.test(body);
     if (!isData) return block;
     const objs = jsonObjects(body);
     if (!objs.length) { out.broken = true; return ''; }
@@ -680,7 +742,8 @@ function extractBlocks(answer) {
       const spec = parseLooseJSON(o.json);
       const label = (o.label || lang).toLowerCase();
       if (!spec || typeof spec !== 'object') { out.broken = true; continue; }
-      if (/chart/.test(label) || (spec.type && spec.x)) out.charts.push(spec);
+      if (/hanzi/.test(label) || (typeof spec.chars === 'string' && /[㐀-鿿]/.test(spec.chars))) out.hanzi.push(spec);   // Chinese writing practice
+      else if (/chart/.test(label) || (spec.type && spec.x)) out.charts.push(spec);
       else if (/slides/.test(label) || Array.isArray(spec.slides)) out.slides.push(spec);
       else if (/table/.test(label) || (spec.columns && spec.rows)) {
         const hasData = (spec.rows || []).some((r) => (r || []).some((c) => c !== '' && c != null));
@@ -768,7 +831,7 @@ speechSynthesis.onvoiceschanged = loadVoices;
 let ttsReady = null, ttsGen = 0, ttsAudio = null, speechQ = [], speechPlaying = false;
 const spokenNow = new Set();   // sentences already queued for the current reply
 window.pip.ttsAvailable().then((ok) => (ttsReady = ok));
-const NEURAL_DEFAULT = { my: 'my-MM-ThihaNeural', en: 'en-US-GuyNeural', pitch: '+0Hz', rate: '+0%' };
+const NEURAL_DEFAULT = { my: 'my-MM-ThihaNeural', en: 'en-US-GuyNeural', zh: 'zh-CN-XiaoxiaoNeural', pitch: '+0Hz', rate: '+0%' };
 const neuralOn = () => settings.speak !== false && settings.naturalVoice !== false && ttsReady;
 const isSpeaking = () => speechSynthesis.speaking || speechPlaying || !!(ttsAudio && !ttsAudio.paused);
 function stopSpeaking() {
@@ -781,26 +844,37 @@ function stopSpeaking() {
   speechSynthesis.cancel();
 }
 let clipDone = null;
-const toPlain = (text) => text.replace(/```[\s\S]*?```/g, ' ').replace(/[#*`>_|]/g, '').replace(/\[(.*?)\]\(.*?\)/g, '$1')
+const toPlain = (text) => normHanzi(text).replace(/```[\s\S]*?(```|$)/g, ' ').replace(/[#*`>_|]/g, '').replace(/\[(.*?)\]\(.*?\)/g, '$1')
   .replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/gu, '').replace(/(drawing chart|building table|writing slides)\.\.\./g, '');
 // split at Burmese "\u104B", ! ? , a "." followed by a space, or a line break (so "1.5" stays whole)
-const splitSentences = (t) => t.split(/(?<=[\u104B!?])\s*|(?<=\.)\s+|\n+/).map((s) => s.trim()).filter((s) => /[\p{L}\p{N}]/u.test(s));
+const splitSentences = (t) => t.split(/(?<=[\u104B!?\u3002\uFF01\uFF1F])\s*|(?<=\.)\s+|\n+/).map((s) => s.trim()).filter((s) => /[\p{L}\p{N}]/u.test(s));
 
 function queueSentence(s) {
   const key = s.replace(/\s+/g, '');
   if (spokenNow.has(key) || spokenNow.size > 200) return;   // room for a whole story
   spokenNow.add(key);
   const n = feelVoice({ ...NEURAL_DEFAULT, ...(charStyle().neural || {}) });
-  const voice = /[\u1000-\u109F]/.test(s) ? n.my : n.en;
-  const cacheKey = `${voice}|${n.rate}|${n.pitch}|${key}`;
-  let clip = clipCache.get(cacheKey);   // repeated phrases (greetings...) play instantly
-  if (!clip) {
-    clip = window.pip.ttsSpeak({ text: s, voice, rate: n.rate, pitch: n.pitch });
-    clip.then((r) => { if (r.ok) { clipCache.set(cacheKey, Promise.resolve(r)); if (clipCache.size > 40) clipCache.delete(clipCache.keys().next().value); } });
+  // Chinese lessons mix languages in one sentence: give every part its own native voice
+  // (Chinese characters -> Chinese voice, a bit slower for learners); pinyin is shown, not read out
+  const parts = s.replace(PINYIN_RE, ' ').replace(/[(（]\s*[)）]/g, ' ').split(/([\u3400-\u9FFF\uF900-\uFAFF][\u3400-\u9FFF\uF900-\uFAFF\uFF0C\u3002\uFF01\uFF1F\u3001\uFF1B\uFF1A\u201C\u201D\u2018\u2019\u300A\u300B\s]*)/)
+    .map((x) => x.trim()).filter((x) => /[\p{L}\p{N}]/u.test(x));
+  for (const part of parts) {
+    const zh = /[\u3400-\u9FFF\uF900-\uFAFF]/.test(part);
+    const voice = zh ? (n.zh || NEURAL_DEFAULT.zh) : /[\u1000-\u109F]/.test(part) ? n.my : n.en;
+    const rate = zh ? `${Math.max(-50, (parseInt(n.rate, 10) || 0) - 15)}%`.replace(/^(\d)/, '+$1') : n.rate;
+    const pitch = zh ? '+0Hz' : n.pitch;
+    const cacheKey = `${voice}|${rate}|${pitch}|${part.replace(/\s+/g, '')}`;
+    let clip = clipCache.get(cacheKey);   // repeated phrases (greetings...) play instantly
+    if (!clip) {
+      clip = window.pip.ttsSpeak({ text: part, voice, rate, pitch });
+      clip.then((r) => { if (r.ok) { clipCache.set(cacheKey, Promise.resolve(r)); if (clipCache.size > 60) clipCache.delete(clipCache.keys().next().value); } });
+    }
+    speechQ.push({ gen: ttsGen, clip });
   }
-  speechQ.push({ gen: ttsGen, clip });
   pumpSpeech();
 }
+// pinyin words (with tone marks), e.g. "n\u01D0 h\u01CEo" - shown on screen but not read by the English voice
+const PINYIN_RE = /[A-Za-z\u00FC\u00DC]*[\u0101\u00E1\u01CE\u00E0\u0113\u00E9\u011B\u00E8\u012B\u00ED\u01D0\u00EC\u014D\u00F3\u01D2\u00F2\u016B\u00FA\u01D4\u00F9\u01D6\u01D8\u01DA\u01DC\u0100\u00C1\u01CD\u00C0\u0112\u00C9\u011A\u00C8\u012A\u00CD\u01CF\u00CC\u014C\u00D3\u01D1\u00D2\u016A\u00DA\u01D3\u00D9][A-Za-z\u00FC\u00DC\u0101\u00E1\u01CE\u00E0\u0113\u00E9\u011B\u00E8\u012B\u00ED\u01D0\u00EC\u014D\u00F3\u01D2\u00F2\u016B\u00FA\u01D4\u00F9\u01D6\u01D8\u01DA\u01DC]*/g;
 const clipCache = new Map();
 // the voice follows the feeling of the reply: quicker and higher when happy, slower and lower when sad
 const FEEL_VOICE = { excited: [8, 5], laugh: [6, 4], happy: [4, 2], love: [0, 3], shy: [-4, 2], proud: [3, 2], surprised: [4, 6],
@@ -837,7 +911,7 @@ async function pumpSpeech() {
 function streamSpeak(textSoFar) {
   if (!neuralOn()) return;
   const plain = toPlain(textSoFar), parts = splitSentences(plain);
-  if (!/([\u104B!?\n]|\.\s)\s*$/.test(plain)) parts.pop();   // the last piece may still be growing ("1." may become "1.5")
+  if (!/([\u104B!?\n\u3002\uFF01\uFF1F]|\.\s)\s*$/.test(plain)) parts.pop();   // the last piece may still be growing ("1." may become "1.5")
   parts.forEach(queueSentence);
 }
 // called once the reply is complete: voice whatever has not been voiced yet

@@ -123,19 +123,30 @@ let momentBusy = false;
 async function runMoment(name) {
   if (momentBusy) return;
   momentBusy = true;
-  const keys = Object.keys(MOMENTS);
-  const play = MOMENTS[name] || MOMENTS[keys[Math.floor(Math.random() * keys.length)]];
+  const play = MOMENTS[name] || MOMENTS[pickMoment()];
   try { await play(); }
   catch (e) { console.warn('moment failed', e); }
   finally { look(null); sceneEl.innerHTML = ''; momentBusy = false; }
 }
-// now and then while idle (panel closed, not talking, not asleep)
+// the cat and the butterfly come most often, never the same moment twice in a row
+const MOMENT_WEIGHTS = { cat: 4, butterfly: 4, bird: 2, ball: 2, tea: 1, stretch: 1 };
+let lastMoment = '';
+function pickMoment() {
+  const pool = Object.entries(MOMENT_WEIGHTS).filter(([k]) => k !== lastMoment && MOMENTS[k]);
+  let r = Math.random() * pool.reduce((t, [, w]) => t + w, 0);
+  for (const [k, w] of pool) { if ((r -= w) < 0) return (lastMoment = k); }
+  return (lastMoment = pool[0][0]);
+}
+// often while nobody is using it: every 1-2.5 min (also with the chat open, after ~45 s without typing or clicking)
+let lastActivity = Date.now();
+for (const ev of ['keydown', 'mousedown', 'wheel']) window.addEventListener(ev, () => { lastActivity = Date.now(); }, true);
 function scheduleMoment(first) {
   setTimeout(() => {
-    const idle = !busy && !isSpeaking() && panel.classList.contains('hidden') && !pipEl.classList.contains('sleep') && !dragging;
+    const idle = !busy && !isSpeaking() && !pipEl.classList.contains('sleep') && !dragging && Date.now() - lastActivity > 45000
+      && !document.querySelector('.cmdBtns');   // never during an Allow / Deny question (writing practice = clicking, so it waits)
     if (settings.moments !== false && idle) runMoment();
     scheduleMoment(false);
-  }, first ? 2.5 * 60000 : (4 + Math.random() * 5) * 60000);
+  }, first ? 45000 : (60 + Math.random() * 90) * 1000);
 }
 scheduleMoment(true);
 

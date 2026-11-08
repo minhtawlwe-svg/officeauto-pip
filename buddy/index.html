@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob: data:">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob: data:; connect-src 'self' https://cdn.jsdelivr.net">
 <title>Pip</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -397,6 +397,7 @@
 <div id="drop" class="hidden">Drop to summarize</div>
 
 <script src="node_modules/chart.js/dist/chart.umd.js"></script>
+<script src="hanzi-writer.min.js"></script>   <!-- Chinese stroke-order animation + writing practice (MIT) -->
 <script src="renderer.js"></script>
 <script src="skills.js"></script>
 <script src="sounds.js"></script>
