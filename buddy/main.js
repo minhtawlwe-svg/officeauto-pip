@@ -59,6 +59,8 @@ function loadSettings() {
   settings = { ...DEFAULTS, ...raw };
   if (Array.isArray(raw.providers)) {
     providers = raw.providers.map(({ keyEnc, ...p }) => ({ ...p, keys: dec(keyEnc) }));
+    // newer Gemini keys can't use gemini-2.5-flash any more (404 "no longer available to new users"): move the old default up
+    for (const p of providers) if (p.type === 'gemini' && (!p.model || p.model === 'gemini-2.5-flash')) p.model = 'gemini-3.5-flash';
   } else {
     // first run of the multi-provider version: turn the old single Gemini setup into a provider
     providers = [{ ...AI.PRESETS.gemini, id: 'gemini1', preset: 'gemini',

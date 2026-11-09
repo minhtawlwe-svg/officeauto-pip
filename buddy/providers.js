@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 
 const PRESETS = {
-  gemini: { type: 'gemini', name: 'Google Gemini', mode: 'relay', relayUrl: 'https://interview-relay.vercel.app/api/ask', model: 'gemini-2.5-flash', keyUrl: 'https://aistudio.google.com/apikey', note: 'Free key. Relay mode works in Myanmar without VPN.' },
+  gemini: { type: 'gemini', name: 'Google Gemini', mode: 'relay', relayUrl: 'https://interview-relay.vercel.app/api/ask', model: 'gemini-3.5-flash', keyUrl: 'https://aistudio.google.com/apikey', note: 'Free key. Relay mode works in Myanmar without VPN.' },
   claude: { type: 'claude', name: 'Claude (Anthropic)', model: 'claude-opus-5-5', keyUrl: 'https://platform.claude.com', note: 'Paid API key. Great for writing and long documents.' },
   openai: { type: 'openai', name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', model: '', keyUrl: 'https://platform.openai.com/api-keys', note: 'Paid API key. Click "Load models" after adding the key.' },
   openrouter: { type: 'openai', name: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1', model: '', keyUrl: 'https://openrouter.ai/keys', note: 'One key for hundreds of models (some free).' },
@@ -109,7 +109,8 @@ module.exports = function createProviders({ net }) {
 
   // ------------------------------------------------------------ Gemini
   async function askGemini(p, req, keys, onText) {
-    const models = [p.model, 'gemini-2.5-flash', 'gemini-2.5-flash-lite'].filter((m, i, a) => m && a.indexOf(m) === i);
+    // 3.5 Flash works with every key (newer keys get 404 on 2.5 Flash); the rest are fallbacks when a model is busy
+    const models = [p.model, 'gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.5-flash-lite'].filter((m, i, a) => m && a.indexOf(m) === i).slice(0, 6);
     if (p.mode !== 'direct') {
       // relay is single-turn and caps the system prompt at 20k chars: fold in the newest turns that fit
       let budget = 19000 - req.system.length, hist = '';
@@ -303,7 +304,7 @@ module.exports = function createProviders({ net }) {
       if (p.type === 'gemini') {
         if (!key) return [];
         const res = await fetchFn('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers: { 'x-goog-api-key': key } });
-        if (!res.ok) return ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro'];   // relay users: Google itself may be blocked
+        if (!res.ok) return ['gemini-3.5-flash', 'gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro'];   // relay users: Google itself may be blocked
         const j = await res.json();
         return (j.models || []).filter((m) => (m.supportedGenerationMethods || []).includes('generateContent') && /gemini/.test(m.name)).map((m) => m.name.replace('models/', ''));
       }
