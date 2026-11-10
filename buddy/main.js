@@ -826,14 +826,14 @@ app.whenReady().then(() => {
   ttsAvailable().then((ok) => { if (ok && settings.naturalVoice !== false) ttsWarm(); });   // start the voice helper + open its connections
   setInterval(checkReminders, 15000);
   setTimeout(checkReminders, 5000);
-  if (UPD.enabled) {   // editions: look for updates 90 s after start, then every 6 hours
+  if (UPD.enabled) {   // editions: look for updates 60 s after start, then every hour (GitHub allows 60 checks/hour)
     const autoUpdate = async () => {
       if (settings.autoUpdate === false) return;
       const c = await UPD.check().catch(() => null);
       if (c && c.available && win) win.webContents.send('update:available', c.latest);
     };
-    setTimeout(autoUpdate, 90 * 1000);
-    setInterval(autoUpdate, 6 * 3600 * 1000);
+    setTimeout(autoUpdate, 60 * 1000);
+    setInterval(autoUpdate, 3600 * 1000);
   }
 });
 app.on('will-quit', () => { globalShortcut.unregisterAll(); if (ttsProc) ttsProc.kill(); });
