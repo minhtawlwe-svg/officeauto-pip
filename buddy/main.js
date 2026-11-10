@@ -57,6 +57,10 @@ function loadSettings() {
   let raw = {};
   try { raw = JSON.parse(fs.readFileSync(SETTINGS_FILE(), 'utf8')); } catch { }
   settings = { ...DEFAULTS, ...raw };
+  // edition.json "voice": false -> replies are text only. Applied once (also on PCs that already had the voice on);
+  // after that the "Read replies aloud" switch in Settings is theirs again.
+  const voiceOffNow = EDITION.voice === false && !raw.voiceOffApplied;
+  if (voiceOffNow) { settings.speak = false; settings.voiceOffApplied = true; }
   if (Array.isArray(raw.providers)) {
     providers = raw.providers.map(({ keyEnc, ...p }) => ({ ...p, keys: dec(keyEnc) }));
     // newer Gemini keys can't use gemini-2.5-flash any more (404 "no longer available to new users"): move the old default up
@@ -69,6 +73,7 @@ function loadSettings() {
   }
   for (const k of ['keyEnc', 'mode', 'relayUrl', 'model', 'providers']) delete settings[k];
   if (!providers.some((p) => p.id === settings.activeProvider)) settings.activeProvider = providers[0]?.id || '';
+  if (voiceOffNow && fs.existsSync(SETTINGS_FILE())) saveSettings();   // remember it was applied once
 }
 
 function saveSettings(patch = {}) {
