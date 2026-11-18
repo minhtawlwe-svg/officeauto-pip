@@ -251,7 +251,10 @@ function systemPrompt(extra = '') {
   const lang = settings.replyLang === 'my' ? 'Always reply in Burmese (Myanmar script); keep technical terms in English.'
     : settings.replyLang === 'en' ? 'Always reply in English.'
     : 'Reply in the same language the user writes or speaks (English or Burmese).';
-  if (settings.chatOnly) return chatOnlyPrompt(now, lang, extra);
+  // Christmas season (xmas.js): a festive mood, not forced into every reply
+  const xmas = typeof xmasSeason === 'function' && xmasSeason(now)
+    ? '\nIT IS CHRISTMAS SEASON 🎄: you wear a Santa hat and snow is falling around you. Share the cosy festive joy naturally - now and then say Merry Christmas, talk about presents, snow, Santa, carols and decorations, and when asked for a story or joke you may make it Christmas-themed. Do not force it into every reply.' : '';
+  if (settings.chatOnly) return chatOnlyPrompt(now, lang, extra) + xmas;
   return [
     CHAR_PERSONAS[settings.character] || 'You are Pip, a friendly, upbeat little desktop assistant who lives above the Windows taskbar and helps an office worker get through the day.',
     `Today is ${now.toDateString()}, local time ${now.toLocaleTimeString()}.` + (settings.userName ? ` The user's name is ${settings.userName}.` : ''),
