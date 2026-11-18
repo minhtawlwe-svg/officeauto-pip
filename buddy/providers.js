@@ -67,6 +67,15 @@ function keyWorked(p, key) {
   nextStart.set(p.id, (i + 1) % keys.length);   // next request starts with the following key
 }
 
+// The model sometimes gets stuck repeating one syllable or line forever. Find where such a loop starts at the end
+// of the reply so far (a 1-8 char unit 8+ times, or a 9-80 char unit 4+ times), or -1. Same as the web apps' chat.js.
+function loopStart(all) {
+  const off = Math.max(0, all.length - 700), tail = all.slice(off);
+  const m = /(\S[^]{0,7}?)(?:[\s.…,၊]*\1){7,}[\s.…,၊]*$/u.exec(tail) || /(\S[^]{8,79}?)(?:\s*\1){3,}\s*$/u.exec(tail);
+  return m ? off + m.index + m[1].length : -1;
+}
+const HOLD = 160;
+
 module.exports = function createProviders({ net }) {
   const fetchFn = (url, init) => net.fetch(url, init);   // Chromium network stack: honours the app proxy
 
@@ -158,11 +167,21 @@ module.exports = function createProviders({ net }) {
         lastErr = `${model} ${mask(key)}: ${res.status}`; continue;
       }
       if (!res.ok) throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 300)}`);
-      let full = '';
-      await readSSE(res.body, (j) => {
-        const t = (j.candidates?.[0]?.content?.parts || []).map((x) => x.text || '').join('');
-        if (t) { full += t; onText(t); }
-      });
+      // text is passed on HOLD characters late, so a repetition loop ("မိး.. မိး.. မိး..") can be cut before it shows
+      let full = '', sent = 0, cutAt = -1;
+      const LOOP = {};
+      try {
+        await readSSE(res.body, (j) => {
+          const t = (j.candidates?.[0]?.content?.parts || []).map((x) => x.text || '').join('');
+          if (!t) return;
+          full += t;
+          const ls = loopStart(full);
+          if (ls >= 0) { if (ls > sent) onText(full.slice(sent, ls)); cutAt = ls; throw LOOP; }
+          if (full.length - HOLD > sent) { onText(full.slice(sent, full.length - HOLD)); sent = full.length - HOLD; }
+        });
+      } catch (e) { if (e !== LOOP) throw e; }
+      if (cutAt >= 0) { full = full.slice(0, cutAt) + ' 😅'; onText(' 😅'); }
+      else if (full.length > sent) onText(full.slice(sent));
       keyWorked(p, key);
       return full;
     }
