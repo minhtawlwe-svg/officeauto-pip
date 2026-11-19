@@ -135,7 +135,10 @@ module.exports = function createProviders({ net }) {
           system: req.system + (hist ? `\n\n--- Conversation so far ---\n${hist.trim()}` : ''),
           type: req.audio ? 'audio' : 'text',
           payload: req.audio || req.text || '(see attached file)',
-          images: req.files || [], models, max_output_tokens: 8192, temperature: 0.6,
+          // the relay waits for each model with no time limit, and Vercel kills it after ~25 s (504
+          // FUNCTION_INVOCATION_TIMEOUT); 3.5 Flash / flash-latest can take 20-30 s to start, 2.5 Flash Lite ~1 s
+          images: req.files || [], models: ['gemini-2.5-flash-lite', ...models.filter((m) => m !== 'gemini-2.5-flash-lite' && m !== 'gemini-flash-latest')],
+          max_output_tokens: 8192, temperature: 0.6,
         }),
       });
       if (res.status === 429) {   // the relay already tried every key we sent
