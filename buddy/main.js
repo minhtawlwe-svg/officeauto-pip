@@ -651,7 +651,18 @@ function registerIpc() {
   });
   ipcMain.on('win:hide', () => win.hide());
   ipcMain.on('win:show', () => { if (!win.isVisible()) win.showInactive(); });
-  ipcMain.handle('office:make', (_e, { kind, payload }) => CHAT_ONLY ? NO_TOOLS : runOfficeScript('office-make.ps1', ['-Kind', kind], payload));
+  ipcMain.handle('office:make', async (_e, { kind, payload }) => {
+    if (CHAT_ONLY) return NO_TOOLS;
+    const r = await runOfficeScript('office-make.ps1', ['-Kind', kind], payload);
+    if (r.ok || kind !== 'ppt') return r;
+    // no PowerPoint (or its automation failed): build the .pptx file ourselves and open it
+    try {
+      const out = await require('./pptx-make')(payload, app.getPath('documents'));
+      const openErr = await shell.openPath(out.file);
+      if (openErr) shell.showItemInFolder(out.file);
+      return { ok: true, msg: `${path.basename(out.file)} (${out.slides} slides, saved in Documents\\Presentations)`, saved: true };
+    } catch (e) { return { ok: false, error: r.error + ' / ' + (e.message || e) }; }
+  });
   ipcMain.handle('clip:read', () => {
     let img = clipboard.readImage(), image = null;
     if (!img.isEmpty()) {

@@ -31,12 +31,69 @@ const SKILLS = [
     prompt: 'Proofread this document. List each problem as: original → correction (reason), grouped under **Spelling & grammar**, **Clarity**, **Consistency** (names, numbers, dates). End with a quality score out of 10. Do not rewrite the whole document.' },
   { id: 'ocr', group: 'Documents', icon: '🖼️', name: 'Read screenshot text', run: 'clipimage',
     prompt: 'Extract all text from this image exactly, keeping the layout. If it contains a table, output it as a ```table block. Finish with one line saying what the image is.' },
-  { id: 'ppt', group: 'Documents', icon: '🎞️', name: 'Make PowerPoint', hint: 'Topic or your content, e.g. "Q3 sales review for managers, 6 slides"', autoPpt: true,
+  { id: 'ppt', group: 'Present', icon: '🎞️', name: 'Make PowerPoint', hint: 'Topic or your content, e.g. "Q3 sales review for managers, 6 slides"', autoPpt: true,
     prompt: 'Create a presentation as a ```slides block: strong title + subtitle, 5-10 slides, max 5 short bullets each, speaker notes. Write it in the same language as my request below (Burmese request = all slides in Burmese, short bullets). Use the content given and never invent numbers. After the block, one short sentence.\n\n{input}' },
   { id: 'explain', group: 'Documents', icon: '💡', name: 'Explain simply', hint: 'Paste anything confusing: a policy, contract clause, error message',
     prompt: 'Explain this simply for a busy office worker: what it means, what I need to do, any risk or deadline. Short bullets.\n\n{input}' },
   { id: 'sop', group: 'Documents', icon: '✅', name: 'Checklist / SOP', hint: 'Which process? e.g. month-end closing, new staff onboarding',
     prompt: 'Write a practical step-by-step checklist (SOP) for this: numbered steps with "- [ ]" boxes, who does each step, and common mistakes to avoid.\n\n{input}' },
+  // ---- presenting (the slides block becomes a real .pptx - with PowerPoint, or built by pptx-make.js without it)
+  { id: 'pptfile', group: 'Present', icon: '📂', name: 'PowerPoint from a file', run: 'file', autoPpt: true,
+    prompt: 'Turn this document into a presentation as a ```slides block: strong title + subtitle, 6-10 slides that follow the document\'s structure, max 5 short bullets each (key facts, numbers and conclusions from the document only - never invent numbers), and speaker notes for every slide that say what to explain. Same language as the document. After the block, one short sentence.' },
+  { id: 'script', group: 'Present', icon: '🎤', name: 'Presentation script', hint: 'Topic, how many minutes, who listens (or paste your slides)',
+    prompt: 'Write a natural speaking script for this presentation: a strong opening hook, then each part with what to SAY (spoken, simple sentences), [pause] / [show slide N] cues and the time for each part, and a memorable closing. Keep it within the time I give (about 130 words per minute). Same language as my request.\n\n{input}' },
+  { id: 'qa', group: 'Present', icon: '🙋', name: 'Practice Q&A', hint: 'Your topic or slides - get the hard questions people may ask',
+    prompt: 'I have to present this. List the 8 most likely questions from the audience (include 2 hard or tricky ones) and for each a short, confident answer I can say. Then 3 tips for handling a question I cannot answer. Same language as my request.\n\n{input}' },
+  { id: 'pitch', group: 'Present', icon: '⏱️', name: 'Elevator pitch', hint: 'Who are you / what is the idea or product, who is the listener',
+    prompt: 'Write a 30-second and a 60-second spoken pitch for this, clear and persuasive, ending with a call to action. Then one-line versions for a bio or LinkedIn. Same language as my request.\n\n{input}' },
+  // ---- work
+  { id: 'actions', group: 'Work', icon: '☑️', name: 'Action items', hint: 'Paste a meeting chat, email thread or notes',
+    prompt: 'Extract every action item from this as a ```table block with columns Task, Owner, Deadline, Notes (use "?" when not stated). Then list any open questions or decisions still needed.\n\n{input}' },
+  { id: 'proposal', group: 'Work', icon: '📑', name: 'Proposal / plan', hint: 'What do you propose, for whom, budget/time if known',
+    prompt: 'Write a clear, persuasive proposal with headings: Summary, Problem / opportunity, Proposed solution, Benefits, Timeline (table), Budget (table, only figures I give - [placeholder] otherwise), Risks & how we handle them, Next steps. Same language as my request.\n\n{input}' },
+  { id: 'quote', group: 'Work', icon: '🧾', name: 'Quotation / invoice', hint: 'Items, quantities, prices, customer name',
+    prompt: 'Make a quotation as a ```table block with columns No, Item, Qty, Unit price, Amount (Amount = Qty x Unit price), then Subtotal, Tax only if I gave a rate, and Total - compute the numbers exactly and double-check them. Add a short header (company / customer / date {date} / validity) and payment terms with [placeholders] for missing details.\n\n{input}' },
+  { id: 'tricky', group: 'Work', icon: '🕊️', name: 'Tricky message', hint: 'e.g. ask for a raise, say no to the boss, apologise, remind someone to pay',
+    prompt: 'Help me write this difficult message. Give 3 versions - gentle, balanced, firm - each polite, clear and short, ready to send. Then one line on which fits best and why. Same language as my request.\n\n{input}' },
+  { id: 'cv', group: 'Work', icon: '💼', name: 'CV / cover letter', hint: 'Paste your experience + the job you want (or the job ad)',
+    prompt: 'Using only my real details below, write (1) a strong one-page CV in clean sections (Profile, Experience with achievement bullets that start with action verbs, Education, Skills), and (2) a short tailored cover letter for this job. Use [placeholders] for anything missing; never invent experience.\n\n{input}' },
+  { id: 'interview', group: 'Work', icon: '🎯', name: 'Interview practice', hint: 'The job title (and the job ad if you have it)',
+    prompt: 'Be my interview coach for this job. Give the 10 most likely interview questions (mix of HR, skills and situation questions) and for each a strong sample answer using the STAR method in simple language, plus 3 smart questions I can ask them at the end. Same language as my request.\n\n{input}' },
+  { id: 'social', group: 'Work', icon: '📣', name: 'Social media post', hint: 'What to announce or promote, which platform (Facebook, TikTok, LinkedIn)',
+    prompt: 'Write 3 different engaging posts for this (with a hook first line, short paragraphs, fitting emojis, a call to action and 3-6 hashtags), in Burmese and English versions. Facebook/TikTok = friendly, LinkedIn = professional.\n\n{input}' },
+  // ---- study
+  { id: 'teach', group: 'Study', icon: '👩‍🏫', name: 'Teach me a topic', hint: 'Any topic, e.g. "VLOOKUP", "photosynthesis", "how loans work"',
+    prompt: 'Teach me this step by step like a great teacher: a one-sentence big idea, then the key points in simple words with a real-life example for each (Myanmar examples when it fits), a small worked example, common mistakes, and finally 3 quick check questions (answers hidden at the very end under "Answers"). Same language as my request.\n\n{input}' },
+  { id: 'quiz', group: 'Study', icon: '❓', name: 'Quiz me', hint: 'A topic or paste your notes',
+    prompt: 'Quiz me on this: ask 5 questions (mix of multiple choice and short answer), numbered, and STOP - wait for my answers. After I answer, mark each one, explain the right answers simply and give me a score. Same language as my request.\n\n{input}' },
+  { id: 'quizfile', group: 'Study', icon: '📝', name: 'Quiz from a file', run: 'file',
+    prompt: 'Make a 10-question quiz from this document (multiple choice with A-D, testing the important points), then an "Answers" section at the end with a one-line explanation for each.' },
+  { id: 'flash', group: 'Study', icon: '🃏', name: 'Flashcards', hint: 'Topic or notes to turn into flashcards',
+    prompt: 'Make 15 flashcards from this as a ```table block with columns Front (question or term), Back (short answer), Example. Most important first.\n\n{input}' },
+  { id: 'essay', group: 'Study', icon: '📄', name: 'Essay / assignment', hint: 'The question or topic, length, level',
+    prompt: 'Help me with this assignment: first a clear outline (thesis + main points), then a well-structured draft with an introduction, body paragraphs with evidence/examples and a conclusion, at the length asked. Write it in my language level and style, and mark facts I should check with [check]. Same language as my request.\n\n{input}' },
+  { id: 'solve', group: 'Study', icon: '🧮', name: 'Solve step by step', hint: 'A math, accounting or logic problem',
+    prompt: 'Solve this step by step: what is asked, the method, every calculation shown clearly, then the final answer in bold. Check the answer at the end. If something is missing, say what you assumed.\n\n{input}' },
+  { id: 'vocab', group: 'Study', icon: '🔤', name: 'English vocabulary', hint: 'A topic (e.g. "office meetings") or words you want to learn',
+    prompt: 'Teach me 12 useful English words / phrases for this as a ```table block with columns Word, Pronunciation (simple), Burmese meaning, Example sentence. Then a short practice: 5 fill-in-the-blank sentences (answers at the end).\n\n{input}' },
+  // ---- think & decide
+  { id: 'compare', group: 'Think & decide', icon: '⚖️', name: 'Compare options', hint: 'The options + what matters to you (price, time, quality ...)',
+    prompt: 'Compare these options as a ```table block (one row per option, columns for each thing that matters plus Pros and Cons), then give a clear recommendation and why, and what would change my mind. Same language as my request.\n\n{input}' },
+  { id: 'swot', group: 'Think & decide', icon: '🧭', name: 'SWOT analysis', hint: 'A business, product, project or plan',
+    prompt: 'Do a SWOT analysis of this (Strengths, Weaknesses, Opportunities, Threats - 3-5 specific points each), then the 3 most important actions it suggests. Same language as my request.\n\n{input}' },
+  { id: 'ideas', group: 'Think & decide', icon: '💡', name: 'Brainstorm ideas', hint: 'What do you need ideas for?',
+    prompt: 'Brainstorm 12 varied, practical ideas for this (from safe to bold), each with one line on why it works. Then pick the top 3 and give the first step for each. Same language as my request.\n\n{input}' },
+  { id: 'budget', group: 'Think & decide', icon: '💰', name: 'Budget planner', hint: 'Your income and spending (monthly), or a goal to save for',
+    prompt: 'Make a monthly budget as a ```table block with columns Category, Amount, % of income - compute totals exactly. Then point out where money can be saved and a simple plan to reach the goal (if I gave one). Use the currency I use (Kyat if not stated).\n\n{input}' },
+  { id: 'trip', group: 'Think & decide', icon: '🧳', name: 'Trip planner', hint: 'Where, how many days, budget, who is going',
+    prompt: 'Plan this trip day by day (morning / afternoon / evening), with transport tips, a rough budget ```table block and a packing checklist. Say which details (opening times, prices) to double-check. Same language as my request.\n\n{input}' },
+  // ---- writing extras
+  { id: 'wishes', group: 'Write', icon: '🎉', name: 'Wishes & greetings', hint: 'Birthday, Christmas, New Year, thank-you ... and for whom',
+    prompt: 'Write 5 warm, different messages for this occasion (short to longer, one a little funny), in both Burmese and English, ready to copy.\n\n{input}' },
+  { id: 'shorter', group: 'Write', icon: '✂️', name: 'Make it shorter', hint: 'Paste long text to cut down', copy: true,
+    prompt: 'Make this about half as long while keeping every important point, the meaning and the language. Output ONLY the shorter text.\n\n{input}' },
+  { id: 'vba', group: 'Excel & data', icon: '⚙️', name: 'Excel macro (VBA)', hint: 'What should the macro do?',
+    prompt: 'Write an Excel VBA macro that does this, with comments in simple English, safe (no deleting data without asking). Then numbered steps to add and run it (Alt+F11, Insert > Module, paste, F5) and how to save as .xlsm.\n\n{input}' },
   // ---- planning
   { id: 'plan', group: 'Plan my day', icon: '🗓️', name: 'Plan my day', run: 'plan' },
   { id: 'remind', group: 'Plan my day', icon: '⏰', name: 'Set reminder', hint: 'e.g. "at 3pm call the supplier", "tomorrow 9am send the report"',
@@ -118,7 +175,7 @@ function submitSkill(text) {
 async function skillWithFile(s) {
   const p = await window.pip.pickFile();
   if (!p) return;
-  if (await attachPath(p)) askAI({ text: s.prompt, display: `${s.icon} ${s.name}: ${attachment.name}` });
+  if (await attachPath(p)) askAI({ text: s.prompt, display: `${s.icon} ${s.name}: ${attachment.name}`, autoPpt: !!s.autoPpt });
 }
 
 async function skillWithScreenshot(s) {
@@ -208,7 +265,7 @@ function renderSlides(container, spec, auto) {
     b.disabled = true; b.textContent = 'Building slides...';
     const r = await window.pip.officeMake('ppt', { Title: spec.title || 'Presentation', Subtitle: spec.subtitle || '', Slides: slides.map((s) => ({ title: s.title || '', bullets: s.bullets || [], notes: s.notes || '' })) });
     b.disabled = false; b.textContent = 'Create PowerPoint';
-    if (r.ok) { sys(`✔ ${r.msg} opened (not saved yet - press Ctrl+S to keep it). Tip: Design → Designer for more styles.`); mood('happy', 1500); } else errMsg('PowerPoint: ' + r.error);
+    if (r.ok) { sys(r.saved ? `✔ ${r.msg} - it is opening now.` : `✔ ${r.msg} opened (not saved yet - press Ctrl+S to keep it). Tip: Design → Designer for more styles.`); mood('happy', 1500); } else errMsg('PowerPoint: ' + r.error);
   };
   b.onclick = make;
   bar.appendChild(b); box.appendChild(bar); container.appendChild(box);
