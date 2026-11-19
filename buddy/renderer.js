@@ -281,7 +281,7 @@ function systemPrompt(extra = '') {
     'TABLES: when the user wants a table, list or anything for Excel, output a fenced block ```table\n{"title":"Customers","columns":["Name","Phone","Amount"],"rows":[["Ko Aung","09...",150000]]}\n``` (numbers as numbers, dates YYYY-MM-DD). Pip shows it with an "Open in Excel" button. Small comparison tables in normal answers can be markdown tables.',
     'SLIDES: when the user wants a presentation/PowerPoint, output ```slides\n{"title":"...","subtitle":"...","slides":[{"title":"...","bullets":["..."],"notes":"..."}]}\n``` (5-10 slides, max 5 short bullets each). Write the slides in the language the user asked in (Burmese request = Burmese slides; keep each Burmese bullet short, under ~10 words). Pip builds a real PowerPoint file from it (Burmese gets the Myanmar Text font automatically).',
     `REMINDERS: you CAN set reminders. Add [[REMIND:YYYY-MM-DD HH:MM|short text]] on its own line, in local time (now: ${localStamp(now)}, ${now.toLocaleDateString('en-US', { weekday: 'long' })}). "in 30 minutes" = now + 30 min; "tomorrow morning" = tomorrow 09:00. Confirm in one short sentence.`,
-    'Letters, memos, reports and minutes get an "Open in Word" button and emails (with a "Subject:" line) get an "Email draft" button automatically - so write them complete and ready to use.',
+    'Letters, memos, reports and minutes get an "Open in Word" button and emails (with a "Subject:" line) get "Send via Gmail" and "Email draft" buttons automatically - so write them complete and ready to use. When the user gives the email address it is for, put a "To: <address>" line just above the Subject line (the button fills it in). Never say you sent an email yourself: the user presses Send.',
     'SPREADSHEETS: you CAN read the user\'s Excel/CSV data and draw charts. ' + (data
       ? `Data is loaded from "${data.name}":\n${dataSummary()}\n`
       : 'No data is loaded yet. If the user asks you to read, analyze or chart their Excel/data/spreadsheet, reply with one short sentence like "Let me read your Excel file." and then the tag [[READ:excel]] on its own line (never inside bold/quotes, never ask the user to type it) - Pip will load the workbook open in Excel (or ask the user to pick a file) and send you the data. Do not ask which chart they want first.\n') +
@@ -404,7 +404,7 @@ async function askAI({ text = '', audio = null, display = null, extraSystem = ''
   for (const spec of ex.hanzi.slice(0, 2)) renderHanzi(target, spec);   // Chinese: stroke order + writing practice
   for (const r of remTags.slice(0, 5)) setReminderFromTag(r);
   for (const m of memTags.slice(0, 3)) rememberFact(m);
-  if (!settings.chatOnly) addTools(target, answer, tools);
+  if (!settings.chatOnly) addTools(target, answer, tools, heard || text);
   charSound('reply');
   if (copyResult && answer && answer !== '\u{1F44D}') {
     window.pip.copy(cleanForCopy(answer));
@@ -802,15 +802,27 @@ function cleanForCopy(t) {
   return t.replace(/^#{1,4}\s+/gm, '').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/`([^`]+)`/g, '$1').trim();
 }
 
-function addTools(el, text, extra) {
+const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/;
+function addTools(el, text, extra, request) {
   const bar = document.createElement('div'); bar.className = 'msgTools';
   const copy = document.createElement('button'); copy.textContent = 'Copy';
   copy.onclick = () => { window.pip.copy(cleanForCopy(text)); copy.textContent = 'Copied'; setTimeout(() => (copy.textContent = 'Copy'), 1200); };
   bar.appendChild(copy);
   const subject = text.match(/^\s*\**Subject:\**\s*(.*)$/m);
   if (subject) {
+    const subj = subject[1].replace(/\*/g, '').trim();
+    // the recipient: a "To:" line in the answer, else the first email address in what the user asked
+    const toLine = text.match(/^\s*\**To:\**\s*(.*)$/m);
+    const to = ((toLine && toLine[1].match(EMAIL_RE)) || String(request || '').match(EMAIL_RE) || [''])[0];
+    const body = cleanForCopy(text.replace(/^\s*\**(Subject|To):.*$/gm, ''));
+    // Gmail in the browser, everything filled in - one click on Send (works without Outlook set up)
+    const g = document.createElement('button'); g.textContent = '📧 Send via Gmail'; g.className = 'primary';
+    g.title = to ? 'Opens Gmail with the email to ' + to + ' ready - just press Send' : 'Opens Gmail with this email ready - add who it is for, then press Send';
+    g.onclick = () => { window.pip.mailGmail({ to, subject: subj, body }); sys('📧 Gmail is opening in your browser' + (to ? ' - the email to ' + to + ' is ready, just press Send.' : ' - type who it is for in "To", then press Send.')); };
+    bar.appendChild(g);
     const b = document.createElement('button'); b.textContent = 'Email draft';
-    b.onclick = () => window.pip.mailDraft(subject[1].replace(/\*/g, ''), cleanForCopy(text.replace(/^\s*\**Subject:.*$/m, '')));
+    b.title = 'Open in the Windows mail app (Outlook / Mail)';
+    b.onclick = () => window.pip.mailDraft(subj, body, to);
     bar.appendChild(b);
   }
   if (text.length > 700 || /^#{1,3}\s/m.test(text)) {   // documents only, not chatty replies

@@ -58,6 +58,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .msgTools { display: flex; gap: 6px; margin-top: 6px; }
 .msgTools button, .action { background: rgba(255,255,255,.06); border: 1px solid var(--line); border-radius: 8px; font-size: 11px; padding: 2px 8px; }
 .action { border-color: var(--accent); background: rgba(20,168,180,.15); margin-top: 6px; display: inline-block; }
+.msgTools button.primary { border-color: var(--accent); background: rgba(20,168,180,.28); font-weight: 600; }
 .msg.pip:has(.chart) { max-width: 100%; width: 100%; }
 .chart { margin-top: 8px; background: rgba(0,0,0,.2); border: 1px solid var(--line); border-radius: 10px; padding: 8px; }
 .chartCanvas { position: relative; height: 210px; }

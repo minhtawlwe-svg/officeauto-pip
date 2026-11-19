@@ -800,8 +800,15 @@ function registerIpc() {
     return r.filePath;
   });
   ipcMain.handle('clip:write', (_e, t) => { clipboard.writeText(t); return true; });
-  ipcMain.handle('mail:draft', (_e, { subject, body }) =>
-    shell.openExternal(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body.slice(0, 1800))}`));
+  const mailTo = (to) => (/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(String(to || '')) ? String(to) : '');
+  ipcMain.handle('mail:draft', (_e, { subject, body, to }) =>
+    shell.openExternal(`mailto:${encodeURIComponent(mailTo(to))}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body.slice(0, 1800))}`));
+  // Gmail compose in the default browser with To / Subject / Body filled in - the user just presses Send
+  ipcMain.handle('mail:gmail', (_e, { to, subject, body }) =>
+    shell.openExternal('https://mail.google.com/mail/?view=cm&fs=1'
+      + (mailTo(to) ? '&to=' + encodeURIComponent(mailTo(to)) : '')
+      + '&su=' + encodeURIComponent(String(subject || '').slice(0, 200))
+      + '&body=' + encodeURIComponent(String(body || '').slice(0, 6000))));
 }
 
 // ---------------------------------------------------------------- app lifecycle
